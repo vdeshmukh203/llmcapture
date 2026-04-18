@@ -9,6 +9,9 @@ var ClaudeExtractor = (function () {
     messageContent: '.markdown-content, .prose, [class*="message-content"], [class*="MessageContent"]',
     conversationContainer: '[class*="conversation"], [class*="chat-messages"], main, [role="main"]',
     inputArea: '[contenteditable="true"], .ProseMirror, textarea',
+    // FIX: Added send button selector — previously absent, so button-click
+    // submissions had no submittedAt recorded in input-capture history.
+    sendButton: 'button[aria-label="Send message"], button[data-testid="send-button"], button[aria-label*="Send"]',
     turnContainer: '[class*="turn"], [data-testid*="message"], [class*="Message"]',
   };
 
@@ -30,20 +33,12 @@ var ClaudeExtractor = (function () {
 
     userEls.forEach((el) => {
       const rect = el.getBoundingClientRect();
-      allTurns.push({
-        role: "user",
-        element: el,
-        y: rect.top + window.scrollY,
-      });
+      allTurns.push({ role: "user", element: el, y: rect.top + window.scrollY });
     });
 
     assistantEls.forEach((el) => {
       const rect = el.getBoundingClientRect();
-      allTurns.push({
-        role: "assistant",
-        element: el,
-        y: rect.top + window.scrollY,
-      });
+      allTurns.push({ role: "assistant", element: el, y: rect.top + window.scrollY });
     });
 
     allTurns.sort((a, b) => a.y - b.y);
@@ -138,7 +133,10 @@ var ClaudeExtractor = (function () {
   function getThreadKey() {
     try {
       const parsed = new URL(window.location.href);
-      return `${parsed.origin}${parsed.pathname}${parsed.search || ""}`;
+      // FIX: Strip query string. Claude.ai conversation identity is the path
+      // (/chat/UUID). Original code appended parsed.search which can include
+      // UTM or share parameters, breaking session resume across navigations.
+      return `${parsed.origin}${parsed.pathname}`;
     } catch (e) {
       return window.location.href;
     }
@@ -161,12 +159,13 @@ var ClaudeExtractor = (function () {
             }
           }
         }
-        if (
-          mutation.type === "characterData" ||
-          mutation.type === "childList"
-        ) {
-          hasNewContent = true;
-        }
+        // FIX: Removed unconditional characterData/childList branch. The original
+        // code set hasNewContent=true for EVERY characterData mutation, which fires
+        // on every streaming token (~10-50/sec). This caused continuous debounce
+        // resets, preventing the settle timer from ever firing during long responses.
+        // childList mutations on addedNodes (above) already cover structural changes.
+        // characterData is only needed to detect in-place text edits, which Claude
+        // does not use for message rendering — it appends new nodes during streaming.
       }
       if (hasNewContent) {
         callback();
@@ -176,7 +175,10 @@ var ClaudeExtractor = (function () {
     observer.observe(container, {
       childList: true,
       subtree: true,
-      characterData: true,
+      // FIX: characterData removed — was firing thousands of times per response
+      // during Claude's streaming, causing continuous debounce resets and
+      // preventing processMessages from ever being called until streaming stopped
+      // naturally. childList:true is sufficient for detecting new message nodes.
     });
 
     return observer;

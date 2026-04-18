@@ -17,7 +17,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log(
       `[AI Chat Capture] Session locked: ${message.sessionId} (${message.reason})`
     );
-    updateBadge(sender.tab?.id, "50", "#f59e0b");
+    // FIX #3: Was hardcoded "50" — meaningless as a lock indicator.
+    updateBadge(sender.tab?.id, "LK", "#f59e0b");
   }
 });
 
@@ -27,4 +28,5 @@ function updateBadge(tabId, text, color) {
   chrome.action.setBadgeBackgroundColor({ color: color || "#10b981", tabId: tabId });
 }
 
-chrome.action.onClicked.addListener((tab) => {});
+// FIX #8: Removed dead chrome.action.onClicked listener.
+// When default_popup is set in the manifest, onClicked never fires.

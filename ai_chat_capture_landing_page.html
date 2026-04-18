@@ -1,0 +1,256 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f172a;--surface:#1e293b;--surface2:#0f1f35;
+  --green:#10b981;--green-dim:#065f46;--green-text:#6ee7b7;
+  --text:#f1f5f9;--muted:#94a3b8;--dim:#475569;
+  --border:#1e3a5f;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6}
+.page{max-width:760px;margin:0 auto;padding:0 24px 80px}
+
+/* NAV */
+nav{display:flex;align-items:center;justify-content:space-between;padding:20px 0 32px}
+.nav-logo{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;color:var(--text)}
+.nav-logo svg{color:var(--green)}
+.nav-badge{font-size:11px;color:var(--muted);background:var(--surface);padding:3px 10px;border-radius:20px;border:0.5px solid var(--border)}
+.nav-link{font-size:13px;color:var(--muted);text-decoration:none}
+.nav-link:hover{color:var(--text)}
+
+/* HERO */
+.hero{text-align:center;padding:48px 0 56px}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--green-text);background:var(--green-dim);padding:4px 14px;border-radius:20px;margin-bottom:20px;letter-spacing:.04em;text-transform:uppercase;font-weight:500}
+.hero h1{font-size:36px;font-weight:500;line-height:1.2;color:var(--text);margin-bottom:16px;letter-spacing:-0.02em}
+.hero h1 em{font-style:normal;color:var(--green)}
+.hero-sub{font-size:16px;color:var(--muted);max-width:520px;margin:0 auto 36px;line-height:1.7}
+.cta-row{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}
+.btn-primary{background:var(--green);color:#022c22;font-size:14px;font-weight:500;padding:10px 24px;border-radius:8px;border:none;cursor:pointer;text-decoration:none;display:inline-block}
+.btn-secondary{background:transparent;color:var(--muted);font-size:14px;padding:10px 20px;border-radius:8px;border:0.5px solid var(--dim);cursor:pointer;text-decoration:none;display:inline-block}
+.btn-secondary:hover{color:var(--text);border-color:var(--muted)}
+
+/* CHAIN DEMO */
+.chain-demo{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:20px 24px;margin:0 0 56px;overflow-x:auto}
+.chain-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+.chain-entries{display:flex;align-items:stretch;gap:0}
+.chain-entry{flex:1;min-width:130px;background:var(--surface2);border:0.5px solid var(--border);border-radius:6px;padding:10px 12px;position:relative}
+.chain-entry+.chain-entry{margin-left:6px}
+.chain-connector{display:flex;align-items:center;color:var(--green);font-size:16px;padding:0 2px;align-self:center;flex-shrink:0}
+.ce-role{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.ce-role.user{color:#60a5fa}
+.ce-role.assistant{color:var(--green-text)}
+.ce-text{font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.4}
+.ce-hash{font-size:9px;font-family:monospace;color:var(--dim);background:var(--bg);padding:3px 6px;border-radius:4px;word-break:break-all}
+.chain-note{font-size:11px;color:var(--dim);margin-top:12px;display:flex;align-items:center;gap:6px}
+.chain-note span{color:var(--green);font-size:9px}
+
+/* FEATURES */
+.section-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:20px}
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:56px}
+.feat{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:20px}
+.feat-icon{width:32px;height:32px;background:var(--green-dim);border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.feat-icon svg{color:var(--green-text)}
+.feat h3{font-size:14px;font-weight:500;color:var(--text);margin-bottom:6px}
+.feat p{font-size:13px;color:var(--muted);line-height:1.5}
+.feat-accent{border-color:#1d4ed8;border-left:2px solid var(--green)}
+
+/* HOW IT WORKS */
+.how{margin-bottom:56px}
+.steps{display:flex;flex-direction:column;gap:0}
+.step{display:flex;gap:16px;padding:18px 0;border-bottom:0.5px solid var(--border)}
+.step:last-child{border-bottom:none}
+.step-num{width:28px;height:28px;border-radius:50%;background:var(--green-dim);color:var(--green-text);font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.step-body h4{font-size:14px;font-weight:500;color:var(--text);margin-bottom:4px}
+.step-body p{font-size:13px;color:var(--muted);line-height:1.5}
+.step-body code{font-family:monospace;font-size:11px;color:var(--green-text);background:var(--green-dim);padding:1px 6px;border-radius:3px}
+
+/* USE CASES */
+.usecases{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:56px}
+.usecase{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:18px}
+.usecase h4{font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px}
+.usecase p{font-size:12px;color:var(--muted);line-height:1.5}
+.uc-tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;margin-bottom:10px;font-weight:500}
+.uc-research{background:#1e3a5f;color:#93c5fd}
+.uc-legal{background:#3b1f06;color:#fcd34d}
+.uc-audit{background:#1c1c3a;color:#c4b5fd}
+
+/* INTEGRITY BLOCK */
+.integrity{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:24px;margin-bottom:56px}
+.integrity-header{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.integrity-dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.integrity-title{font-size:14px;font-weight:500;color:var(--text)}
+.integrity-status{font-size:12px;color:var(--green-text);background:var(--green-dim);padding:2px 10px;border-radius:10px;margin-left:auto}
+.integrity-rows{font-size:12px}
+.ir{display:flex;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid var(--border)}
+.ir:last-child{border-bottom:none}
+.ir-label{color:var(--muted)}
+.ir-val{color:var(--text);font-family:monospace}
+.ir-val.ok{color:var(--green-text)}
+.ir-val.hash{font-size:10px;color:var(--dim)}
+
+/* FOOTER */
+.footer{text-align:center;padding-top:32px;border-top:0.5px solid var(--border)}
+.footer p{font-size:12px;color:var(--dim)}
+.platforms{display:flex;justify-content:center;gap:20px;margin-bottom:16px}
+.platform-pill{font-size:12px;color:var(--muted);background:var(--surface);padding:4px 14px;border-radius:20px;border:0.5px solid var(--border)}
+</style>
+
+<div class="page">
+  <nav>
+    <div class="nav-logo">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      AI Chat Capture
+    </div>
+    <div style="display:flex;gap:16px;align-items:center">
+      <span class="nav-badge">v11.1</span>
+      <a href="#" class="nav-link">GitHub</a>
+    </div>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-eyebrow">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Forensic-grade capture
+    </div>
+    <h1>Every AI conversation,<br><em>tamper-evident</em> by design</h1>
+    <p class="hero-sub">A Chrome extension that records ChatGPT, Claude, and Gemini sessions as cryptographically chained logs — structured for academic publication, legal proceedings, and research integrity.</p>
+    <div class="cta-row">
+      <a href="#" class="btn-primary">Add to Chrome — free</a>
+      <a href="#" class="btn-secondary">View source →</a>
+    </div>
+  </div>
+
+  <div class="chain-demo">
+    <div class="chain-label">Live chain — SHA-256 linked entries</div>
+    <div class="chain-entries">
+      <div class="chain-entry">
+        <div class="ce-role user">User · turn 1</div>
+        <div class="ce-text">"Explain zero-day vulnerabilities…"</div>
+        <div class="ce-hash">prev: GENESIS<br>hash: 3f8a2d…</div>
+      </div>
+      <div class="chain-connector">→</div>
+      <div class="chain-entry">
+        <div class="ce-role assistant">AI · turn 2</div>
+        <div class="ce-text">"A zero-day is a flaw unknown to the vendor…"</div>
+        <div class="ce-hash">prev: 3f8a2d…<br>hash: a91c7e…</div>
+      </div>
+      <div class="chain-connector">→</div>
+      <div class="chain-entry">
+        <div class="ce-role user">User · turn 3</div>
+        <div class="ce-text">"What are the legal implications?"</div>
+        <div class="ce-hash">prev: a91c7e…<br>hash: 5d04bb…</div>
+      </div>
+    </div>
+    <div class="chain-note"><span>●</span> Any alteration to any entry breaks subsequent hashes — tampering is immediately detectable on export.</div>
+  </div>
+
+  <div class="section-label">Core capabilities</div>
+  <div class="features">
+    <div class="feat feat-accent">
+      <div class="feat-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <h3>Cryptographic chain</h3>
+      <p>Every entry is SHA-256 hashed against the previous entry. Breaking any link is immediately detectable during verification.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </div>
+      <h3>Two-layer record</h3>
+      <p>Captures raw keystrokes separately from rendered text — preserving what you typed versus what the AI received.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <h3>Exact timestamps</h3>
+      <p>ISO 8601 timestamps on every entry and session event — start, capture, lock, finalize — with millisecond resolution.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
+      <h3>Study manifest export</h3>
+      <p>Exports a structured JSON forensic log plus a companion study manifest formatted for academic citation and legal disclosure.</p>
+    </div>
+  </div>
+
+  <div class="how">
+    <div class="section-label">How it works</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Session anchoring</h4>
+          <p>Each conversation thread gets a unique <code>sessionId</code> and a SHA-256 <code>fingerprint</code> computed from platform, URL, and thread key at creation time.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Entry chaining</h4>
+          <p>Every captured turn — user prompt or AI response — is hashed as <code>SHA-256(canonical_entry + previousHash)</code>. The first entry chains to <code>GENESIS</code>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Streaming settlement</h4>
+          <p>Assistant responses are captured only after text stabilises across two polling intervals — eliminating partial-stream artifacts from the record.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h4>Verification on export</h4>
+          <p>Export runs <code>verifyChain()</code> over all entries. The manifest records <code>integrityStatus: "verified"</code> or <code>"tampered"</code> alongside per-entry hash results.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">Use cases</div>
+  <div class="usecases">
+    <div class="usecase">
+      <div class="uc-tag uc-research">Academic research</div>
+      <h4>Reproducible AI studies</h4>
+      <p>Publish interaction logs with verifiable integrity. Reviewers can confirm sessions were not edited post-hoc.</p>
+    </div>
+    <div class="usecase">
+      <div class="uc-tag uc-legal">Legal proceedings</div>
+      <h4>Expert witness evidence</h4>
+      <p>Chain-verified transcripts with session fingerprints and timestamps provide a structured basis for evidentiary disclosure.</p>
+    </div>
+    <div class="usecase">
+      <div class="uc-tag uc-audit">Compliance audit</div>
+      <h4>Organisational AI audit trails</h4>
+      <p>Maintain tamper-evident records of AI-assisted decisions for compliance review or internal accountability.</p>
+    </div>
+  </div>
+
+  <div class="integrity">
+    <div class="integrity-header">
+      <div class="integrity-dot"></div>
+      <div class="integrity-title">Sample export — session integrity block</div>
+      <div class="integrity-status">Chain intact</div>
+    </div>
+    <div class="integrity-rows">
+      <div class="ir"><span class="ir-label">sessionId</span><span class="ir-val">sess_m3k9x_4r2a1b</span></div>
+      <div class="ir"><span class="ir-label">platform</span><span class="ir-val">claude</span></div>
+      <div class="ir"><span class="ir-label">integrityStatus</span><span class="ir-val ok">verified</span></div>
+      <div class="ir"><span class="ir-label">promptCount</span><span class="ir-val">12</span></div>
+      <div class="ir"><span class="ir-label">entryCount</span><span class="ir-val">24</span></div>
+      <div class="ir"><span class="ir-label">fingerprint</span><span class="ir-val hash">a3f7c2e1d4b89056f2a1cc3d7e890b2f4a1e6d3c…</span></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="platforms">
+      <span class="platform-pill">ChatGPT</span>
+      <span class="platform-pill">Claude</span>
+      <span class="platform-pill">Gemini</span>
+    </div>
+    <p>Open-source Chrome extension &nbsp;·&nbsp; Manifest v3 &nbsp;·&nbsp; No data leaves your browser</p>
+  </div>
+</div>
