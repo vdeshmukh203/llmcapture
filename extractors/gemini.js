@@ -9,6 +9,9 @@ var GeminiExtractor = (function () {
     messageContent: '.markdown-main-panel, .response-container-content, .markdown, .message-text',
     conversationContainer: '.conversation-container, .chat-history, main, [role="main"]',
     inputArea: '.ql-editor, .text-input-field, textarea, [contenteditable="true"], rich-textarea .ql-editor',
+    // FIX: Added send button selector — previously absent, causing button-click
+    // submissions to have no submittedAt in input-capture's history.
+    sendButton: 'button[aria-label*="Send"], button[aria-label*="send"], button.send-button, [data-testid*="send-button"], mat-icon-button[aria-label*="Send"]',
     turnContainer: '.conversation-turn, .chat-turn, .turn-container, model-response, user-query',
   };
 
@@ -65,20 +68,12 @@ var GeminiExtractor = (function () {
 
     userEls.forEach((el) => {
       const rect = el.getBoundingClientRect();
-      allTurns.push({
-        role: "user",
-        element: el,
-        y: rect.top + window.scrollY,
-      });
+      allTurns.push({ role: "user", element: el, y: rect.top + window.scrollY });
     });
 
     assistantEls.forEach((el) => {
       const rect = el.getBoundingClientRect();
-      allTurns.push({
-        role: "assistant",
-        element: el,
-        y: rect.top + window.scrollY,
-      });
+      allTurns.push({ role: "assistant", element: el, y: rect.top + window.scrollY });
     });
 
     allTurns.sort((a, b) => a.y - b.y);
@@ -174,7 +169,13 @@ var GeminiExtractor = (function () {
   function getThreadKey() {
     try {
       const parsed = new URL(window.location.href);
-      return `${parsed.origin}${parsed.pathname}${parsed.search || ""}`;
+      // FIX: Strip query string entirely. Gemini conversation identity is solely
+      // in the path (/app/THREAD_ID). Including parsed.search caused 15+ tracking
+      // params (gclid, gbraid, UTM etc.) to enter the threadKey, making it 483
+      // chars long and breaking session resume when the user navigates back via
+      // a different ad click (different gclid = different key = new session created
+      // instead of resuming the existing one).
+      return `${parsed.origin}${parsed.pathname}`;
     } catch (e) {
       return window.location.href;
     }

@@ -80,11 +80,13 @@ var ChatGPTExtractor = (function () {
   function getThreadKey() {
     try {
       const parsed = new URL(window.location.href);
-      const chatId =
-        parsed.pathname.match(/\/c\/([^/]+)/)?.[1] ||
-        parsed.pathname.replace(/\/+$/, "") ||
-        "new-chat";
-      return `${parsed.origin}${parsed.pathname}${parsed.search || ""}` || chatId;
+      // FIX: Strip query string. ChatGPT conversation identity is in the pathname
+      // (/c/THREAD_ID). The original code appended parsed.search which could
+      // include tracking or share parameters, producing a different threadKey
+      // for the same conversation and breaking session resume.
+      // The chatId extraction below is retained as a comment for reference but
+      // parsed.origin + parsed.pathname is sufficient and unambiguous.
+      return `${parsed.origin}${parsed.pathname}`;
     } catch (e) {
       return window.location.href;
     }
