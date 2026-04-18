@@ -17,7 +17,7 @@
         </div>
         <h1>AI Chat Capture</h1>
       </div>
-      <div class="version">v11.0</div>
+      <div class="version">v11.1</div>
     </header>
 
     <section class="status-section">
@@ -34,8 +34,20 @@
         <span id="messageCount" class="message-count">0</span>
       </div>
       <div class="status-row">
+        <span class="status-label">Prompts</span>
+        <span id="promptCount" class="message-count">0</span>
+      </div>
+      <div class="status-row">
         <span class="status-label">Session</span>
         <span id="sessionId" class="session-id">-</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Lock Reason</span>
+        <span id="lockReason" class="platform-name">-</span>
+      </div>
+      <div class="status-row status-row-wide">
+        <span class="status-label">Active Tab</span>
+        <span id="activeTabUrl" class="url-text">-</span>
       </div>
     </section>
 
@@ -48,7 +60,17 @@
         <label for="rawInputToggle">Capture Raw Input</label>
         <input type="checkbox" id="rawInputToggle" checked>
       </div>
-      <button id="forceCapture" class="btn btn-secondary">Force Capture Now</button>
+      <div class="toggle-row compact-row">
+        <label for="autoRefreshToggle">Auto Refresh Status</label>
+        <input type="checkbox" id="autoRefreshToggle" checked>
+      </div>
+      <div class="button-row">
+        <button id="refreshStatus" class="btn btn-secondary btn-half">Refresh</button>
+        <button id="forceCapture" class="btn btn-secondary btn-half">Force Capture</button>
+      </div>
+      <div id="debugNote" class="debug-note">
+        For manual realtime testing: keep the chat tab active, type normally, then reopen this popup and press Refresh or Force Capture.
+      </div>
     </section>
 
     <section class="sessions-section">
