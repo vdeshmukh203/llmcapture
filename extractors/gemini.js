@@ -4,8 +4,8 @@ var GeminiExtractor = (function () {
   const PLATFORM = "gemini";
 
   const SELECTORS = {
-    userMessage: '.query-content, [data-message-author="user"], .user-query, message-content[data-author-type="user"]',
-    assistantMessage: '.response-content, .model-response-text, [data-message-author="model"], message-content[data-author-type="model"]',
+    userMessage: 'user-query, [data-message-author="user"], message-content[data-author-type="user"], .user-query, .query-content',
+    assistantMessage: 'model-response, [data-message-author="model"], message-content[data-author-type="model"], .model-response-text, .response-content',
     messageContent: '.markdown-main-panel, .response-container-content, .markdown, .message-text',
     conversationContainer: '.conversation-container, .chat-history, main, [role="main"]',
     inputArea: '.ql-editor, .text-input-field, textarea, [contenteditable="true"], rich-textarea .ql-editor',
@@ -14,6 +14,41 @@ var GeminiExtractor = (function () {
 
   function isMatch(url) {
     return url.includes("gemini.google.com");
+  }
+
+  function cleanUserEchoText(text) {
+    const normalized = (text || "").replace(/\s+/g, " ").trim();
+    if (!normalized) return "";
+    return normalized.replace(/^You said\s+/i, "").trim();
+  }
+
+  function extractUserText(element) {
+    if (!element) return "";
+
+    const preferred = [
+      '[data-test-id="user-query"]',
+      '[data-testid="user-query"]',
+      '.query-text',
+      '.user-query-text',
+      '.query-content',
+      '.text-content',
+      '.markdown',
+    ];
+
+    for (const selector of preferred) {
+      const found = element.querySelector(selector);
+      if (found) {
+        const text = cleanUserEchoText(extractTextContent(found));
+        if (text) return text;
+      }
+    }
+
+    return cleanUserEchoText(extractTextContent(element));
+  }
+
+  function extractAssistantText(element) {
+    const contentEl = element.querySelector(SELECTORS.messageContent) || element;
+    return extractTextContent(contentEl).trim();
   }
 
   function extractAllMessages() {
@@ -49,9 +84,9 @@ var GeminiExtractor = (function () {
     allTurns.sort((a, b) => a.y - b.y);
 
     allTurns.forEach((turn, index) => {
-      const contentEl =
-        turn.element.querySelector(SELECTORS.messageContent) || turn.element;
-      const renderedText = extractTextContent(contentEl);
+      const renderedText = turn.role === "user"
+        ? extractUserText(turn.element)
+        : extractAssistantText(turn.element);
 
       if (renderedText.trim()) {
         messages.push({
@@ -76,14 +111,14 @@ var GeminiExtractor = (function () {
 
     const turns = container.querySelectorAll(SELECTORS.turnContainer);
     turns.forEach((turn, index) => {
-      const text = extractTextContent(turn);
-      if (!text.trim()) return;
-
       const isUser =
         turn.tagName?.toLowerCase() === "user-query" ||
         turn.querySelector('[class*="user"]') ||
         turn.getAttribute("data-author-type") === "user" ||
         index % 2 === 0;
+
+      const text = isUser ? extractUserText(turn) : extractAssistantText(turn);
+      if (!text.trim()) return;
 
       messages.push({
         index: index,
