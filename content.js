@@ -17,6 +17,19 @@
   let initPromise = null;
   let currentThreadKey = null;
   let lastKnownUrl = null;
+  let lastDebug = {
+    stage: "boot",
+    reason: "not_initialized",
+    captureEnabled: null,
+    threadKey: null,
+    lastError: null,
+    extractorFound: false,
+    lastMessageScanCount: 0,
+  };
+
+  function setDebug(patch) {
+    lastDebug = { ...lastDebug, ...patch };
+  }
 
   function detectPlatform() {
     const url = window.location.href;
@@ -54,6 +67,7 @@
 
   async function loadSettings() {
     settingsCache = await SessionStorage.getSettings();
+    setDebug({ captureEnabled: !!settingsCache.captureEnabled });
     return settingsCache;
   }
 
@@ -77,6 +91,7 @@
         await syncCaptureCycle();
       }, DEBOUNCE_DELAY);
     });
+    setDebug({ stage: "observer_bound", reason: "observer_active" });
   }
 
   async function finalizeCurrentSession(reason) {
@@ -87,14 +102,23 @@
     currentThreadKey = null;
     knownMessageCount = 0;
     isCapturing = false;
+    setDebug({ stage: "finalized", reason: reason || "finalized", threadKey: null });
   }
 
   async function startOrResumeSession(reason) {
     const settings = settingsCache || (await loadSettings());
     extractor = detectPlatform();
+    setDebug({
+      stage: "start_or_resume",
+      reason: reason || "manual",
+      extractorFound: !!extractor,
+      captureEnabled: !!settings.captureEnabled,
+      lastError: null,
+    });
 
     if (!extractor) {
       console.log("[AI Chat Capture] No supported platform detected");
+      setDebug({ stage: "unsupported", reason: "no_supported_platform" });
       return false;
     }
 
@@ -103,11 +127,16 @@
     if (!settings.captureEnabled) {
       console.log("[AI Chat Capture] Capture disabled in settings");
       isCapturing = false;
+      setDebug({ stage: "disabled", reason: "capture_disabled_in_settings" });
       return false;
     }
 
     const nextThreadKey = getThreadKey();
-    if (!nextThreadKey) return false;
+    setDebug({ threadKey: nextThreadKey || null });
+    if (!nextThreadKey) {
+      setDebug({ stage: "blocked", reason: "missing_thread_key" });
+      return false;
+    }
 
     if (currentSession && currentThreadKey !== nextThreadKey) {
       await finalizeCurrentSession(reason || "thread_changed");
@@ -115,42 +144,55 @@
 
     if (currentSession && currentThreadKey === nextThreadKey) {
       isCapturing = !currentSession.lockedAt;
+      setDebug({ stage: "resumed", reason: "existing_session", threadKey: currentThreadKey });
       return true;
     }
 
-    const result = await SessionStorage.getOrCreateActiveSession(
-      extractor.PLATFORM,
-      window.location.href,
-      nextThreadKey
-    );
+    try {
+      const result = await SessionStorage.getOrCreateActiveSession(
+        extractor.PLATFORM,
+        window.location.href,
+        nextThreadKey
+      );
 
-    currentSession = result.session;
-    currentThreadKey = nextThreadKey;
-    lastKnownUrl = window.location.href;
-    knownMessageCount = currentSession.entryCount;
-    isCapturing = !currentSession.lockedAt;
+      currentSession = result.session;
+      currentThreadKey = nextThreadKey;
+      lastKnownUrl = window.location.href;
+      knownMessageCount = currentSession.entryCount;
+      isCapturing = !currentSession.lockedAt;
 
-    bindObserver();
+      bindObserver();
 
-    chrome.runtime.sendMessage({
-      type: "SESSION_STARTED",
-      sessionId: currentSession.sessionId,
-      platform: extractor.PLATFORM,
-      resumed: result.resumed,
-      locked: !!currentSession.lockedAt,
-    });
+      chrome.runtime.sendMessage({
+        type: "SESSION_STARTED",
+        sessionId: currentSession.sessionId,
+        platform: extractor.PLATFORM,
+        resumed: result.resumed,
+        locked: !!currentSession.lockedAt,
+      });
 
-    console.log(
-      `[AI Chat Capture] ${result.resumed ? "Recovered" : "Started"} session ${currentSession.sessionId} (${currentThreadKey})`
-    );
+      console.log(
+        `[AI Chat Capture] ${result.resumed ? "Recovered" : "Started"} session ${currentSession.sessionId} (${currentThreadKey})`
+      );
 
-    return true;
+      setDebug({
+        stage: result.resumed ? "session_resumed" : "session_started",
+        reason: result.resumed ? "existing_active_session" : "new_session_created",
+        threadKey: currentThreadKey,
+      });
+
+      return true;
+    } catch (error) {
+      setDebug({ stage: "session_error", reason: "get_or_create_failed", lastError: String(error) });
+      throw error;
+    }
   }
 
   async function initCapture() {
     if (initPromise) return initPromise;
 
     initPromise = (async () => {
+      setDebug({ stage: "init_capture", reason: "starting_init" });
       const started = await startOrResumeSession("init");
 
       if (!pollIntervalId) {
@@ -161,6 +203,10 @@
 
       if (started) {
         await pollAndCapture();
+      }
+
+      if (!started) {
+        setDebug({ stage: "init_complete", reason: lastDebug.reason || "not_started" });
       }
 
       return started;
@@ -182,6 +228,7 @@
         if (currentSession) {
           await finalizeCurrentSession("left_supported_platform");
         }
+        setDebug({ stage: "sync", reason: "no_supported_platform" });
         return;
       }
 
@@ -195,9 +242,12 @@
 
       if (isCapturing) {
         await pollAndCapture();
+      } else {
+        setDebug({ stage: "sync_idle", reason: lastDebug.reason || "capture_not_active" });
       }
     } catch (error) {
       console.error("[AI Chat Capture] syncCaptureCycle failed", error);
+      setDebug({ stage: "sync_error", reason: "syncCaptureCycle_failed", lastError: String(error) });
       if (currentSession) {
         await SessionStorage.logSessionError(
           currentSession.sessionId,
@@ -212,6 +262,7 @@
     if (!extractor || !isCapturing || !currentSession) return;
 
     const messages = extractor.extractAllMessages();
+    setDebug({ stage: "poll", reason: "message_scan", lastMessageScanCount: messages.length });
     if (messages.length > knownMessageCount) {
       const newMessages = messages.slice(knownMessageCount);
       await processMessages(newMessages);
@@ -308,6 +359,7 @@
         if (!appendResult) continue;
 
         currentSession = appendResult.session;
+        setDebug({ stage: "captured", reason: `entry_added_${msg.role}` });
 
         if (appendResult.rejected) {
           isCapturing = false;
@@ -342,6 +394,7 @@
         }
       } catch (error) {
         console.error("[AI Chat Capture] processMessages failed", error);
+        setDebug({ stage: "process_error", reason: "processMessages_failed", lastError: String(error) });
         await SessionStorage.logSessionError(
           currentSession.sessionId,
           "processMessages failed",
@@ -390,6 +443,7 @@
         promptCount: currentSession ? currentSession.promptCount : 0,
         locked: currentSession ? !!currentSession.lockedAt : false,
         lockReason: currentSession ? currentSession.lockReason : null,
+        debug: lastDebug,
       });
       return true;
     }
@@ -405,6 +459,7 @@
         });
       } else {
         isCapturing = false;
+        setDebug({ stage: "paused", reason: "toggle_capture_disabled" });
         sendResponse({ isCapturing });
       }
       return true;
@@ -423,6 +478,7 @@
     if (message.type === "SETTINGS_UPDATED") {
       loadSettings().then((settings) => {
         ensureRawInputCapture(settings);
+        setDebug({ captureEnabled: !!settings.captureEnabled, stage: "settings_updated", reason: "settings_reloaded" });
       });
       return true;
     }
