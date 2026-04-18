@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Chat Capture</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="header">
+      <div class="header-title">
+        <div class="logo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <h1>AI Chat Capture</h1>
+      </div>
+      <div class="version">v11.0</div>
+    </header>
+
+    <section class="status-section">
+      <div class="status-row">
+        <span class="status-label">Status</span>
+        <span id="captureStatus" class="status-badge status-inactive">Inactive</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Platform</span>
+        <span id="platformName" class="platform-name">-</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Messages</span>
+        <span id="messageCount" class="message-count">0</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Session</span>
+        <span id="sessionId" class="session-id">-</span>
+      </div>
+    </section>
+
+    <section class="controls-section">
+      <div class="toggle-row">
+        <label for="captureToggle">Capture Enabled</label>
+        <input type="checkbox" id="captureToggle" checked>
+      </div>
+      <div class="toggle-row">
+        <label for="rawInputToggle">Capture Raw Input</label>
+        <input type="checkbox" id="rawInputToggle" checked>
+      </div>
+      <button id="forceCapture" class="btn btn-secondary">Force Capture Now</button>
+    </section>
+
+    <section class="sessions-section">
+      <h2>Saved Sessions</h2>
+      <div id="sessionList" class="session-list">
+        <div class="empty-state">No sessions yet</div>
+      </div>
+    </section>
+
+    <section class="actions-section">
+      <button id="exportAll" class="btn btn-primary">Export All Sessions</button>
+      <button id="verifyAll" class="btn btn-secondary">Verify Integrity</button>
+      <button id="clearAll" class="btn btn-danger">Clear All</button>
+    </section>
+
+    <div id="verifyModal" class="modal hidden">
+      <div class="modal-content">
+        <h3>Chain Integrity Report</h3>
+        <div id="verifyResults" class="verify-results"></div>
+        <button id="closeModal" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="lib/crypto.js"></script>
+  <script src="lib/storage.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
