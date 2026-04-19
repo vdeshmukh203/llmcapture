@@ -143,13 +143,16 @@ test.describe('AI Chat Capture Extension', () => {
     server8081 = await startStaticServer(EXTENSION_PATH, 8081);
     console.log('  Servers ready on :8080 and :8081');
 
-    // Launch Chrome with extension
+    // Launch Chrome with extension.
+    // --disable-blink-features=AutomationControlled removes navigator.webdriver
+    // so Cloudflare / bot-detection on claude.ai / chatgpt.com does not fire.
     browserContext = await chromium.launchPersistentContext(userDataDir, {
       headless: !!process.env.CI,
       args: [
         `--disable-extensions-except=${EXTENSION_PATH}`,
         `--load-extension=${EXTENSION_PATH}`,
         '--no-sandbox',
+        '--disable-blink-features=AutomationControlled',
       ],
     });
 
