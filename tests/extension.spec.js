@@ -427,7 +427,8 @@ test.describe('AI Chat Capture Extension', () => {
     const AUTH_FILE = path.join(__dirname, 'auth', 'claude-state.json');
 
     if (!fs.existsSync(AUTH_FILE)) {
-      console.log('  ⚠ No auth state found. Run: node tests/setup-auth.js');
+      console.log('  ⚠ No auth state found.');
+      console.log('  Run tests/start-chrome-debug.bat, log into claude.ai, then: node tests/setup-auth.js');
       test.skip();
       return;
     }
