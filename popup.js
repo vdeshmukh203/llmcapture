@@ -136,7 +136,23 @@
     const url = URL.createObjectURL(blob);
     chrome.downloads.download(
       { url, filename: `llmcapture/session_logs/${filename}`, saveAs: false },
-      () => URL.revokeObjectURL(url)
+      (downloadId) => {
+        if (chrome.runtime.lastError) {
+          // Subdirectory creation failed (e.g. permission issue) — fall back to
+          // root Downloads folder so the export is never silently lost.
+          console.warn(
+            '[AI Chat Capture] session_logs/ download failed:',
+            chrome.runtime.lastError.message,
+            '— retrying at Downloads root.'
+          );
+          chrome.downloads.download(
+            { url, filename, saveAs: false },
+            () => URL.revokeObjectURL(url)
+          );
+        } else {
+          URL.revokeObjectURL(url);
+        }
+      }
     );
   }
 
