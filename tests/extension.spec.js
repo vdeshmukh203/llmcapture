@@ -413,70 +413,117 @@ test.describe('AI Chat Capture Extension', () => {
     await popup.close();
   });
 
-  // ── 14. E2e content script capture ───────────────────────────────────────────
-  // Navigates to claude.ai, waits for the content script to initialise, injects
-  // a mock user-message node, and confirms the entry is persisted in storage.
+  // ── 14. Real Claude.ai e2e capture ───────────────────────────────────────────
+  // Loads saved Claude.ai session cookies, navigates to a real conversation,
+  // types and sends a message, waits for the assistant reply, and confirms the
+  // content script persisted at least one entry in chrome.storage.
+  //
+  // Prerequisite: run `node tests/setup-auth.js` once to save your login state.
+  // The auth file is git-ignored — re-run setup if your session expires.
 
-  test('14. content script captures injected DOM message on claude.ai', async () => {
-    // Record pre-existing sessions so we can identify the new one
-    const before = await serviceWorker.evaluate(async () =>
-      new Promise(r =>
-        chrome.storage.local.get('aicap_session_index', res =>
-          r((res['aicap_session_index'] ?? []).map(s => s.sessionId))
-        )
-      )
-    );
+  test('14. real Claude.ai capture: content script records a live conversation turn', async () => {
+    test.setTimeout(90000); // real network + AI response can be slow
 
-    const page = await browserContext.newPage();
-    const navStart = Date.now();
-    await page.goto('https://claude.ai', { waitUntil: 'domcontentloaded', timeout: 20000 });
+    const AUTH_FILE = path.join(__dirname, 'auth', 'claude-state.json');
 
-    // Poll storage until the content script creates a new claude session
-    const sessionAppeared = await (async () => {
-      const deadline = Date.now() + 10000;
-      while (Date.now() < deadline) {
-        const idx = await serviceWorker.evaluate(async () =>
-          new Promise(r =>
-            chrome.storage.local.get('aicap_session_index', res =>
-              r(res['aicap_session_index'] ?? [])
-            )
-          )
-        );
-        const isNew = idx.some(
-          s => !before.includes(s.sessionId) && s.platform === 'claude'
-        );
-        if (isNew) return true;
-        await new Promise(r => setTimeout(r, 500));
-      }
-      return false;
-    })();
-
-    if (!sessionAppeared) {
-      console.log('  ⚠ Content script did not create a session (login wall?) — skipping injection');
-      await page.close();
+    if (!fs.existsSync(AUTH_FILE)) {
+      console.log('  ⚠ No auth state found. Run: node tests/setup-auth.js');
       test.skip();
       return;
     }
 
-    // Inject a mock user-message node — MutationObserver in the content script
-    // observes childList on document.body and triggers syncCaptureCycle()
-    await page.evaluate(() => {
-      const el = document.createElement('div');
-      el.setAttribute('data-testid', 'user-message');
-      el.textContent = 'Playwright e2e capture verification message';
-      document.body.appendChild(el);
-    });
+    // Restore Claude.ai cookies into the shared browser context (the one with
+    // the extension loaded).  addCookies() works on persistent contexts too.
+    const authState = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8'));
+    await browserContext.addCookies(authState.cookies ?? []);
 
-    // Wait for the 1.5 s debounce + processing time
-    const captured = await waitForCapturedEntry(serviceWorker, navStart, 8000);
+    const navStart = Date.now();
+    const page = await browserContext.newPage();
 
-    if (!captured) {
-      console.log('  ⚠ Entry not captured within timeout — possible login wall or DOM mismatch');
+    try {
+      // Navigate to a fresh conversation
+      await page.goto('https://claude.ai/new', {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000,
+      });
+
+      // If the cookies were expired we end up on a login page — skip cleanly
+      const currentUrl = page.url();
+      if (!currentUrl.includes('claude.ai') ||
+          currentUrl.includes('/login') ||
+          currentUrl.includes('accounts.')) {
+        console.log(`  ⚠ Redirected to login (${currentUrl}) — re-run: node tests/setup-auth.js`);
+        test.skip();
+        return;
+      }
+
+      // Wait for the ProseMirror contenteditable input to become interactive
+      const input = page.locator('[contenteditable="true"]').first();
+      await input.waitFor({ state: 'visible', timeout: 20000 });
+
+      // Poll storage: confirm the content script created a session for this tab
+      const sessionReady = await (async () => {
+        const deadline = Date.now() + 10000;
+        while (Date.now() < deadline) {
+          const idx = await serviceWorker.evaluate(async () =>
+            new Promise(r =>
+              chrome.storage.local.get('aicap_session_index', res =>
+                r(res['aicap_session_index'] ?? [])
+              )
+            )
+          );
+          if (idx.some(s =>
+            s.platform === 'claude' &&
+            new Date(s.startedAt).getTime() > navStart
+          )) return true;
+          await new Promise(r => setTimeout(r, 400));
+        }
+        return false;
+      })();
+
+      if (!sessionReady) {
+        console.log('  ⚠ Content script did not initialise a session — possible login wall');
+        test.skip();
+        return;
+      }
+
+      // Type a short message using pressSequentially so keyboard events fire
+      // and ProseMirror's React state updates correctly.
+      await input.click();
+      await input.pressSequentially('Say only: ok', { delay: 20 });
+
+      // Click the Send button (try common selectors; fall back to Enter key)
+      const sendBtn = page.locator([
+        'button[aria-label="Send Message"]',
+        'button[aria-label="Send message"]',
+        'button[data-testid="send-button"]',
+        'button[type="submit"]',
+      ].join(', ')).first();
+
+      const sendVisible = await sendBtn.isVisible().catch(() => false);
+      if (sendVisible) {
+        await sendBtn.click();
+      } else {
+        await page.keyboard.press('Enter');
+      }
+
+      // Wait for the assistant reply node to appear — this gives the content
+      // script's MutationObserver + debounce time to fire and persist entries.
+      try {
+        await page.locator('[data-testid="assistant-message"]').first()
+          .waitFor({ state: 'visible', timeout: 45000 });
+      } catch {
+        // Reply didn't appear in 45 s — still check storage below
+        console.log('  ⚠ Assistant reply node not detected in DOM, checking storage anyway…');
+      }
+
+      // Hard assertion: at least one entry must have been captured
+      const captured = await waitForCapturedEntry(serviceWorker, navStart, 10000);
+      expect(captured).toBe(true);
+
+    } finally {
+      await page.close();
     }
-    // Soft assertion: content script loaded and responded; capture depends on page state
-    expect(sessionAppeared).toBe(true);
-
-    await page.close();
   });
 
   // ── 15. Tampered chain detection ─────────────────────────────────────────────
