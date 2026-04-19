@@ -316,9 +316,84 @@ test.describe('AI Chat Capture Extension', () => {
     expect(body).toContain('sha256'); // chain_verifier.tsx mirrors the crypto chain logic
   });
 
-  // ── 10. Content script: GET_STATUS on claude.ai ──────────────────────────
+  // ── 10. Real hash chain integrity ─────────────────────────────────────────
+  //
+  // Creates a genuine session via SessionStorage APIs (available in popup
+  // context), appends two entries so CryptoChain computes real SHA-256 hashes,
+  // exports it, and asserts verification.valid === true.
+  // This catches any regression in the hash formula or key-ordering logic.
 
-  test('10. content script responds to GET_STATUS on claude.ai', async () => {
+  test('10. real session has a valid and unbroken hash chain', async () => {
+    const popup = await browserContext.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    await popup.waitForLoadState('domcontentloaded');
+
+    const result = await popup.evaluate(async () => {
+      // Use a unique threadKey per run so we never resume a stale session
+      const threadKey = `chatgpt:https://chatgpt.com/c/integrity-test-${Date.now()}`;
+
+      // 1. Create a fresh session through the normal API
+      const session = await SessionStorage.createSession(
+        'chatgpt',
+        'https://chatgpt.com/c/integrity-test',
+        threadKey
+      );
+
+      // 2. Append a real user turn — hash is computed by CryptoChain
+      await SessionStorage.appendEntry(
+        session.sessionId,
+        'user',
+        'What is 2 + 2?',
+        null,
+        { status: 'captured' }
+      );
+
+      // 3. Append a real assistant turn chained to the first
+      await SessionStorage.appendEntry(
+        session.sessionId,
+        'assistant',
+        'The answer is 4.',
+        null,
+        { status: 'captured' }
+      );
+
+      // 4. Export — this runs CryptoChain.verifyChain internally
+      const exported = await SessionStorage.exportSession(session.sessionId);
+
+      // Clean up the test session so it doesn't pollute the popup list
+      await SessionStorage.deleteSession(session.sessionId);
+
+      return exported ? JSON.parse(JSON.stringify(exported)) : null;
+    });
+
+    expect(result).not.toBeNull();
+
+    const { forensicLog } = result;
+    expect(forensicLog.verification.valid).toBe(true);
+    expect(forensicLog.entries).toHaveLength(2);
+
+    // Every individual entry must also be valid
+    for (const entry of forensicLog.verification.entries) {
+      expect(entry.valid).toBe(true);
+      expect(entry.previousHashMatches).toBe(true);
+      expect(entry.actualHash).toBe(entry.expectedHash);
+    }
+
+    // Chain linkage: entry[1].previousHash must equal entry[0].hash
+    expect(forensicLog.entries[1].previousHash).toBe(forensicLog.entries[0].hash);
+
+    // Write to session_logs so the output is inspectable
+    fs.mkdirSync(SESSION_LOGS, { recursive: true });
+    const fname = `ai-capture-${forensicLog.session.platform}-${forensicLog.session.sessionId}.json`;
+    fs.writeFileSync(path.join(SESSION_LOGS, fname), JSON.stringify(forensicLog, null, 2));
+    console.log(`  Chain verified ✓  written: ${fname}`);
+
+    await popup.close();
+  });
+
+  // ── 11. Content script: GET_STATUS on claude.ai ──────────────────────────
+
+  test('11. content script responds to GET_STATUS on claude.ai', async () => {
     const page = await browserContext.newPage();
     await page.goto('https://claude.ai', { waitUntil: 'domcontentloaded', timeout: 15000 });
     await page.waitForTimeout(2000);
