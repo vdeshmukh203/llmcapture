@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Chat Capture - Forensic Logger",
-  "version": "11.0.0",
+  "version": "12.0.0",
   "description": "Captures AI chat conversations (ChatGPT, Claude, Gemini) as cryptographically chained, tamper-evident session logs.",
   "permissions": [
     "storage",
