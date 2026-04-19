@@ -34,7 +34,9 @@ async function main() {
   console.log('  When you are on the main chat page, come');
   console.log('  back here and press Enter to save your session.\n');
 
-  const browser = await chromium.launch({ headless: false });
+  // Use the real installed Chrome (not Playwright's Chromium) so that
+  // Claude.ai's bot-detection / security checks pass normally.
+  const browser = await chromium.launch({ headless: false, channel: 'chrome' });
   const context = await browser.newContext();
   const page = await context.newPage();
 
