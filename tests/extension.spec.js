@@ -478,4 +478,331 @@ test.describe('AI Chat Capture Extension', () => {
 
     await page.close();
   });
+
+  // ── 15. Tampered chain detection ─────────────────────────────────────────────
+  // Modifies renderedText on a persisted entry (leaving the original hash intact),
+  // then re-runs verifyChain and asserts it reports valid:false on that entry.
+
+  test('15. CryptoChain detects a tampered entry hash', async () => {
+    const popup = await openPopup(browserContext, extensionId);
+
+    const result = await popup.evaluate(async () => {
+      const tKey = `chatgpt:https://chatgpt.com/c/tamper-${Date.now()}`;
+      const session = await SessionStorage.createSession(
+        'chatgpt', 'https://chatgpt.com/c/tamper', tKey
+      );
+      await SessionStorage.appendEntry(session.sessionId, 'user',      'Original message', null, {});
+      await SessionStorage.appendEntry(session.sessionId, 'assistant', 'Original response', null, {});
+
+      // Tamper: overwrite renderedText in entry[0] but keep the stored hash
+      const stored = await SessionStorage.getSession(session.sessionId);
+      stored.entries[0].renderedText = 'TAMPERED CONTENT';
+      await new Promise(r =>
+        chrome.storage.local.set({ [`aicap_session_${session.sessionId}`]: stored }, r)
+      );
+
+      const verification = await CryptoChain.verifyChain(stored.entries);
+      await SessionStorage.deleteSession(session.sessionId);
+      return JSON.parse(JSON.stringify(verification));
+    });
+
+    await popup.close();
+
+    expect(result.valid).toBe(false);                                        // chain overall invalid
+    expect(result.entries[0].valid).toBe(false);                             // tampered entry flagged
+    expect(result.entries[0].actualHash).not.toBe(result.entries[0].expectedHash);
+    // verifyChain propagates entry.hash (stored) as previousHash for the next entry,
+    // so linkage stays consistent — the forgery is in the content, not the pointer.
+    expect(result.entries[1].previousHashMatches).toBe(true);
+    expect(result.entries[1].valid).toBe(true);                              // entry 1 itself untouched
+  });
+
+  // ── 16. Session resume after reload ──────────────────────────────────────────
+  // getOrCreateActiveSession with the same threadKey must resume the session,
+  // set resumed:true, and increment recoveredFromReloadCount.
+
+  test('16. getOrCreateActiveSession resumes an existing session for the same threadKey', async () => {
+    const popup = await openPopup(browserContext, extensionId);
+
+    const result = await popup.evaluate(async () => {
+      const tKey = `claude:https://claude.ai/chat/resume-${Date.now()}`;
+      const { session: s1, resumed: r1 } = await SessionStorage.getOrCreateActiveSession(
+        'claude', 'https://claude.ai/chat/resume', tKey
+      );
+      const { session: s2, resumed: r2 } = await SessionStorage.getOrCreateActiveSession(
+        'claude', 'https://claude.ai/chat/resume', tKey
+      );
+      const out = {
+        firstResumed:  r1,
+        secondResumed: r2,
+        sameId:        s1.sessionId === s2.sessionId,
+        reloadCount:   s2.recoveredFromReloadCount,
+        recoveredAt:   s2.recoveredAt,
+      };
+      await SessionStorage.deleteSession(s1.sessionId);
+      return out;
+    });
+
+    await popup.close();
+
+    expect(result.firstResumed).toBe(false);        // created fresh
+    expect(result.secondResumed).toBe(true);         // resumed same session
+    expect(result.sameId).toBe(true);
+    expect(result.reloadCount).toBeGreaterThanOrEqual(1);
+    expect(result.recoveredAt).not.toBeNull();
+  });
+
+  // ── 17. 50-turn lock mechanism ───────────────────────────────────────────────
+  // The 51st user turn must be rejected with reason "session_locked".
+
+  test('17. appendEntry rejects the 51st user turn and locks the session', async () => {
+    test.setTimeout(60000); // 50 appends takes a few seconds
+
+    const popup = await openPopup(browserContext, extensionId);
+
+    const result = await popup.evaluate(async () => {
+      const tKey = `chatgpt:https://chatgpt.com/c/lock-${Date.now()}`;
+      const session = await SessionStorage.createSession(
+        'chatgpt', 'https://chatgpt.com/c/lock', tKey
+      );
+      // Add exactly MAX_PROMPT_TURNS (50) user entries
+      for (let i = 0; i < 50; i++) {
+        await SessionStorage.appendEntry(session.sessionId, 'user', `Turn ${i + 1}`, null, {});
+      }
+      // 51st must be rejected
+      const r = await SessionStorage.appendEntry(session.sessionId, 'user', 'Blocked', null, {});
+      await SessionStorage.deleteSession(session.sessionId);
+      return { rejected: r.rejected, reason: r.reason };
+    });
+
+    await popup.close();
+
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe('session_locked');
+  });
+
+  // ── 18. Duplicate skipping ───────────────────────────────────────────────────
+  // recordDuplicate must increment duplicateCount without adding a chain entry.
+
+  test('18. recordDuplicate increments duplicateCount without adding a chain entry', async () => {
+    const popup = await openPopup(browserContext, extensionId);
+
+    const result = await popup.evaluate(async () => {
+      const tKey = `claude:https://claude.ai/chat/dup-${Date.now()}`;
+      const session = await SessionStorage.createSession(
+        'claude', 'https://claude.ai/chat/dup', tKey
+      );
+      await SessionStorage.appendEntry(session.sessionId, 'user', 'Hello world', null, {});
+      // Record the duplicate
+      const after = await SessionStorage.recordDuplicate(session.sessionId, {
+        role: 'user', textPreview: 'Hello world',
+      });
+      const out = { duplicateCount: after.duplicateCount, entryCount: after.entryCount };
+      await SessionStorage.deleteSession(session.sessionId);
+      return out;
+    });
+
+    await popup.close();
+
+    expect(result.duplicateCount).toBe(1);
+    expect(result.entryCount).toBe(1); // no new chain entry added
+  });
+
+  // ── 19. Settings — captureToggle persists ────────────────────────────────────
+
+  test('19. unchecking captureToggle persists captureEnabled:false to storage', async () => {
+    const popup = await openPopup(browserContext, extensionId);
+
+    // Ensure it starts checked
+    await popup.locator('#captureToggle').waitFor({ state: 'visible' });
+    if (!(await popup.locator('#captureToggle').isChecked())) {
+      await popup.locator('#captureToggle').click();
+      await popup.waitForTimeout(300);
+    }
+
+    // Uncheck
+    await popup.locator('#captureToggle').click();
+
+    // Wait for storage to reflect the change
+    await popup.waitForFunction(() =>
+      new Promise(r =>
+        chrome.storage.local.get('aicap_settings', res =>
+          r(res['aicap_settings']?.captureEnabled === false)
+        )
+      )
+    );
+
+    const settings = await serviceWorker.evaluate(async () =>
+      new Promise(r => chrome.storage.local.get('aicap_settings', res => r(res['aicap_settings'])))
+    );
+    expect(settings.captureEnabled).toBe(false);
+
+    // Restore
+    await popup.locator('#captureToggle').click();
+    await popup.close();
+  });
+
+  // ── 20. Settings — rawInputToggle persists ───────────────────────────────────
+
+  test('20. unchecking rawInputToggle persists captureRawInput:false to storage', async () => {
+    const popup = await openPopup(browserContext, extensionId);
+    await popup.locator('#rawInputToggle').waitFor({ state: 'visible' });
+
+    if (!(await popup.locator('#rawInputToggle').isChecked())) {
+      await popup.locator('#rawInputToggle').click();
+      await popup.waitForTimeout(300);
+    }
+
+    await popup.locator('#rawInputToggle').click();
+
+    await popup.waitForFunction(() =>
+      new Promise(r =>
+        chrome.storage.local.get('aicap_settings', res =>
+          r(res['aicap_settings']?.captureRawInput === false)
+        )
+      )
+    );
+
+    const settings = await serviceWorker.evaluate(async () =>
+      new Promise(r => chrome.storage.local.get('aicap_settings', res => r(res['aicap_settings'])))
+    );
+    expect(settings.captureRawInput).toBe(false);
+
+    await popup.locator('#rawInputToggle').click();
+    await popup.close();
+  });
+
+  // ── 21. verifyAll flags tampered session ─────────────────────────────────────
+  // The mock session has fake hashes — verifyAll must show "Tampering detected".
+
+  test('21. verifyAll shows "Tampering detected" for a session with fake hashes', async () => {
+    await seedMockSession(serviceWorker); // fake hashes → chain invalid
+    const popup = await openPopup(browserContext, extensionId);
+    await popup.waitForFunction(() =>
+      !document.querySelector('#sessionList')?.textContent?.includes('No sessions yet')
+    );
+
+    await popup.locator('#verifyAll').click();
+    await popup.locator('#verifyModal').waitFor({ state: 'visible' });
+
+    await expect(popup.locator('#verifyResults')).toContainText('Tampering detected');
+
+    await popup.locator('#closeModal').click();
+    await popup.close();
+  });
+
+  // ── 22. Multi-platform sessions all appear in popup ──────────────────────────
+
+  test('22. chatgpt, claude, and gemini sessions all appear in the session list', async () => {
+    // Seed one session per platform
+    for (const platform of ['chatgpt', 'claude', 'gemini']) {
+      await serviceWorker.evaluate(
+        async ({ platform }) => {
+          const id = `sess_test_${platform}_mp`;
+          const session = {
+            sessionId: id, sessionVersion: '12.0.0', platform,
+            url: `https://${platform}.com/chat/test`,
+            threadKey: `${platform}:https://${platform}.com/chat/test`,
+            startedAt: new Date().toISOString(), endedAt: null,
+            recoveredAt: null, recoveredFromReloadCount: 0, fingerprint: null,
+            entries: [], events: [], entryCount: 0, promptCount: 0,
+            assistantCount: 0, domMessageCount: 0, lastHash: 'GENESIS',
+            integrityStatus: 'clean', status: 'active',
+            lockReason: null, lockedAt: null, duplicateCount: 0, errorCount: 0,
+          };
+          const record = {
+            sessionId: id, platform, startedAt: session.startedAt, endedAt: null,
+            entryCount: 0, promptCount: 0, assistantCount: 0,
+            status: 'active', integrityStatus: 'clean',
+            threadKey: session.threadKey, url: session.url,
+          };
+          await new Promise(r => chrome.storage.local.set({ [`aicap_session_${id}`]: session }, r));
+          const idx = await new Promise(r =>
+            chrome.storage.local.get('aicap_session_index', res => r(res['aicap_session_index'] ?? []))
+          );
+          await new Promise(r =>
+            chrome.storage.local.set({
+              'aicap_session_index': [...idx.filter(i => i.sessionId !== id), record],
+            }, r)
+          );
+        },
+        { platform }
+      );
+    }
+
+    const popup = await openPopup(browserContext, extensionId);
+    await popup.waitForFunction(() =>
+      !document.querySelector('#sessionList')?.textContent?.includes('No sessions yet')
+    );
+
+    const listText = await popup.locator('#sessionList').textContent();
+    expect(listText).toContain('chatgpt');
+    expect(listText).toContain('claude');
+    expect(listText).toContain('gemini');
+
+    await popup.close();
+  });
+
+  // ── 23. rawInput field survives export ───────────────────────────────────────
+
+  test('23. entry with rawInput is preserved verbatim in the forensic log', async () => {
+    const popup = await openPopup(browserContext, extensionId);
+
+    const result = await popup.evaluate(async () => {
+      const tKey = `claude:https://claude.ai/chat/raw-${Date.now()}`;
+      const session = await SessionStorage.createSession(
+        'claude', 'https://claude.ai/chat/raw', tKey
+      );
+      const rawInput = {
+        text: 'raw keystrokes typed before submit',
+        capturedAt: new Date().toISOString(),
+        source: 'keydown',
+        submittedAt: new Date().toISOString(),
+      };
+      await SessionStorage.appendEntry(
+        session.sessionId, 'user', 'Rendered message', rawInput, {}
+      );
+      const exported = await SessionStorage.exportSession(session.sessionId);
+      await SessionStorage.deleteSession(session.sessionId);
+      return exported
+        ? JSON.parse(JSON.stringify(exported.forensicLog.entries[0].rawInput))
+        : null;
+    });
+
+    await popup.close();
+
+    expect(result).not.toBeNull();
+    expect(result.text).toBe('raw keystrokes typed before submit');
+    expect(result.source).toBe('keydown');
+    expect(result.capturedAt).toBeTruthy();
+    expect(result.submittedAt).toBeTruthy();
+  });
+
+  // ── 24. Session finalization lifecycle ───────────────────────────────────────
+
+  test('24. finalizeSession sets endedAt and status to "finalized"', async () => {
+    const popup = await openPopup(browserContext, extensionId);
+
+    const result = await popup.evaluate(async () => {
+      const tKey = `chatgpt:https://chatgpt.com/c/final-${Date.now()}`;
+      const session = await SessionStorage.createSession(
+        'chatgpt', 'https://chatgpt.com/c/final', tKey
+      );
+      await SessionStorage.appendEntry(session.sessionId, 'user', 'A message', null, {});
+      const finalized = await SessionStorage.finalizeSession(session.sessionId, 'user_navigated_away');
+      const out = {
+        status:   finalized.status,
+        endedAt:  finalized.endedAt,
+        reason:   finalized.events.find(e => e.type === 'session_finalized')?.details?.reason,
+      };
+      await SessionStorage.deleteSession(session.sessionId);
+      return out;
+    });
+
+    await popup.close();
+
+    expect(result.status).toBe('finalized');
+    expect(result.endedAt).not.toBeNull();
+    expect(result.reason).toBe('user_navigated_away');
+  });
 });
