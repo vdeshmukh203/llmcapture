@@ -1,0 +1,8 @@
+{
+  "name": "llmcapture-tests",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed"
+  }
+}
