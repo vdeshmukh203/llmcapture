@@ -1,0 +1,85 @@
+{
+  "_format": "ai-chat-capture-v12",
+  "_exportedAt": "2026-04-19T13:38:26.073Z",
+  "session": {
+    "sessionId": "sess_mo5taaha_cj4awr",
+    "sessionVersion": "12.0.0",
+    "platform": "chatgpt",
+    "url": "https://chatgpt.com/c/integrity-test",
+    "threadKey": "chatgpt:https://chatgpt.com/c/integrity-test-1776605906062",
+    "startedAt": "2026-04-19T13:38:26.062Z",
+    "endedAt": null,
+    "recoveredAt": null,
+    "recoveredFromReloadCount": 0,
+    "fingerprint": "287efc1f41bde125f5c80f328eee7350690e207a93a3ba32551bfe18414792fd",
+    "integrityStatus": "verified",
+    "status": "active",
+    "lockReason": null,
+    "lockedAt": null,
+    "promptCount": 1,
+    "assistantCount": 1,
+    "entryCount": 2,
+    "duplicateCount": 0,
+    "errorCount": 0
+  },
+  "entries": [
+    {
+      "chainPosition": 1,
+      "errorDetail": null,
+      "hash": "8a312ce19f83fb852b448c749570872c26e69a18fb540eb2dd8fb0b812a51863",
+      "previousHash": "GENESIS",
+      "rawInput": null,
+      "renderedText": "What is 2 + 2?",
+      "role": "user",
+      "status": "captured",
+      "timestamp": "2026-04-19T13:38:26.068Z",
+      "turn": 1
+    },
+    {
+      "chainPosition": 2,
+      "errorDetail": null,
+      "hash": "72a28fe3eddcd094835cfa45ffdbf4fcd495a8493c577c784d0549da9bd7aa63",
+      "previousHash": "8a312ce19f83fb852b448c749570872c26e69a18fb540eb2dd8fb0b812a51863",
+      "rawInput": null,
+      "renderedText": "The answer is 4.",
+      "role": "assistant",
+      "status": "captured",
+      "timestamp": "2026-04-19T13:38:26.070Z",
+      "turn": 1
+    }
+  ],
+  "events": [
+    {
+      "details": {
+        "platform": "chatgpt",
+        "threadKey": "chatgpt:https://chatgpt.com/c/integrity-test-1776605906062",
+        "url": "https://chatgpt.com/c/integrity-test"
+      },
+      "level": "info",
+      "message": "Started forensic capture session.",
+      "timestamp": "2026-04-19T13:38:26.062Z",
+      "type": "session_started"
+    }
+  ],
+  "verification": {
+    "valid": true,
+    "entries": [
+      {
+        "turn": 1,
+        "chainPosition": 1,
+        "valid": true,
+        "previousHashMatches": true,
+        "expectedHash": "8a312ce19f83fb852b448c749570872c26e69a18fb540eb2dd8fb0b812a51863",
+        "actualHash": "8a312ce19f83fb852b448c749570872c26e69a18fb540eb2dd8fb0b812a51863"
+      },
+      {
+        "turn": 1,
+        "chainPosition": 2,
+        "valid": true,
+        "previousHashMatches": true,
+        "expectedHash": "72a28fe3eddcd094835cfa45ffdbf4fcd495a8493c577c784d0549da9bd7aa63",
+        "actualHash": "72a28fe3eddcd094835cfa45ffdbf4fcd495a8493c577c784d0549da9bd7aa63"
+      }
+    ]
+  }
+}
