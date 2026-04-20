@@ -960,41 +960,55 @@ test.describe('AI Chat Capture Extension', () => {
       const inputSel = '#prompt-textarea';
       await page.locator(inputSel).waitFor({ state: 'visible', timeout: 20000 });
 
-      // Wait for content script to create a chatgpt session
-      let sessionId = null;
-      {
-        const dl = Date.now() + 10000;
-        while (Date.now() < dl) {
-          sessionId = await serviceWorker.evaluate(async (since) => {
-            const idx = await new Promise(r =>
-              chrome.storage.local.get('aicap_session_index', res => r(res['aicap_session_index'] ?? []))
-            );
-            const s = idx.find(s => s.platform === 'chatgpt' && new Date(s.startedAt).getTime() > since);
-            return s?.sessionId ?? null;
-          }, navStart);
-          if (sessionId) break;
-          await new Promise(r => setTimeout(r, 400));
-        }
-      }
-      if (!sessionId) {
-        console.log('  ⚠ Content script did not create a chatgpt session');
-        test.skip();
-        return;
-      }
-      console.log(`  Session: ${sessionId}`);
-
       // ── Helpers ────────────────────────────────────────────────────────────
 
       // Keep ONE popup page open for the whole test — use it for all storage
       // reads instead of serviceWorker.evaluate() which dies after 30s (MV3).
       const bg = await openPopup(browserContext, extensionId);
 
-      const getSessionSnap = () => bg.evaluate(async (id) => {
-        const s = await SessionStorage.getSession(id);
+      // IMPORTANT: ChatGPT redirects chatgpt.com/ → chatgpt.com/c/THREAD_ID on
+      // the first message. The content script detects this URL change and creates
+      // a NEW session for the thread URL. We must NOT pin to the landing-page
+      // session. Instead, always resolve the most recently started chatgpt session
+      // (created after navStart) each time we poll — this automatically follows
+      // the URL change.
+      const getMostRecentSession = () => bg.evaluate(async (since) => {
+        const idx = await new Promise(r =>
+          chrome.storage.local.get('aicap_session_index', res => r(res['aicap_session_index'] ?? []))
+        );
+        const candidates = idx
+          .filter(s => s.platform === 'chatgpt' && new Date(s.startedAt).getTime() > since)
+          .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+        if (!candidates.length) return null;
+        const s = await SessionStorage.getSession(candidates[0].sessionId);
         if (!s) return null;
-        return { promptCount: s.promptCount, assistantCount: s.assistantCount,
-                 entryCount: s.entryCount, lockReason: s.lockReason };
-      }, sessionId);
+        return {
+          sessionId: candidates[0].sessionId,
+          promptCount: s.promptCount,
+          assistantCount: s.assistantCount,
+          entryCount: s.entryCount,
+          lockReason: s.lockReason,
+        };
+      }, navStart);
+
+      // Wait for content script to create at least one chatgpt session
+      {
+        const dl = Date.now() + 10000;
+        while (Date.now() < dl) {
+          const snap = await getMostRecentSession();
+          if (snap) { console.log(`  Session: ${snap.sessionId}`); break; }
+          await new Promise(r => setTimeout(r, 400));
+        }
+        const snap = await getMostRecentSession();
+        if (!snap) {
+          console.log('  ⚠ Content script did not create a chatgpt session');
+          test.skip();
+          return;
+        }
+      }
+
+      // Alias — always resolves the current active session (handles URL change)
+      const getSessionSnap = getMostRecentSession;
 
       // Wait for the nth assistant message in the ChatGPT DOM.
       // ChatGPT uses [data-message-author-role="assistant"] elements.
@@ -1070,13 +1084,9 @@ test.describe('AI Chat Capture Extension', () => {
           // Blocked — still wait for ChatGPT DOM reply, then check storage stayed at 50
           await waitForAssistantReply(qNum, 45000);
           await new Promise(r => setTimeout(r, 1000));
-          const count = await serviceWorker.evaluate(async (id) =>
-            new Promise(r =>
-              chrome.storage.local.get(`aicap_session_${id}`, res =>
-                r(res[`aicap_session_${id}`]?.promptCount ?? 0)
-              )
-            )
-          , sessionId);
+          // Use the dynamic session snap to get promptCount (avoids old session ID)
+          const snap = await getSessionSnap();
+          const count = snap ? snap.promptCount : 0;
           const blocked = count === 50;
           results.push({ qNum, captured: !blocked, blocked });
           const icon = blocked ? '🔒' : '⚠ NOT BLOCKED';
@@ -1094,12 +1104,16 @@ test.describe('AI Chat Capture Extension', () => {
       if (missed50) console.log(`  Missed   (Q1-50): ${missed50}  ← content-script bug`);
       console.log(`  Blocked (Q51-55): ${blocked5}/5`);
 
+      // Resolve the final session ID from the dynamic lookup for export
+      const finalSnap = await getSessionSnap();
+      const finalSessionId = finalSnap?.sessionId ?? 'unknown';
+
       // Export forensic log via the already-open bg popup
-      const exported = await exportViaPopup(bg, sessionId);
+      const exported = await exportViaPopup(bg, finalSessionId);
       await bg.close();
 
       if (exported) {
-        const fname = `ai-capture-chatgpt-${sessionId}-55q.json`;
+        const fname = `ai-capture-chatgpt-${finalSessionId}-55q.json`;
         fs.writeFileSync(
           path.join(SESSION_LOGS, fname),
           JSON.stringify(exported.forensicLog, null, 2)
