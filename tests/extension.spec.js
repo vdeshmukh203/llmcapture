@@ -863,7 +863,7 @@ test.describe('AI Chat Capture Extension', () => {
   // 50-turn lock. Exports the forensic log and verifies the full hash chain.
 
   test('25. 55-question stress test: 1-50 captured, 51-55 locked, chain intact', async () => {
-    test.setTimeout(1200000); // up to 20 min for 55 real AI round-trips
+    test.setTimeout(7200000); // up to 2 h for 55 real AI round-trips (~120s/q on slow ChatGPT)
 
     const QUESTIONS = [
       'What is the third prime number?',
@@ -1077,11 +1077,11 @@ test.describe('AI Chat Capture Extension', () => {
         if (qNum <= 50) {
           // Wait for ChatGPT reply in DOM, then confirm storage captured user turn
           await waitForAssistantReply(qNum, 45000);
-          const captured = await waitForPromptCount(qNum, 15000);
+          const captured = await waitForPromptCount(qNum, 25000);
           results.push({ qNum, captured, blocked: false });
           const icon = captured ? '✓' : '⚠';
           console.log(`  Q${String(qNum).padStart(2, '0')} ${icon}  ${question.slice(0, 55)}`);
-          if (!captured) console.log(`       ↳ promptCount did not reach ${qNum} within 15 s`);
+          if (!captured) console.log(`       ↳ promptCount did not reach ${qNum} within 25 s`);
         } else {
           // Blocked — still wait for ChatGPT DOM reply, then verify session is locked.
           // The lock can fire via either the user-message path (promptCount >= 50 rejects
