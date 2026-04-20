@@ -228,10 +228,24 @@
 
     isProcessing = true;
     try {
-      const messages = extractor.extractAllMessages();
+      let messages = extractor.extractAllMessages();
       if (messages.length > knownMessageCount) {
         const newMessages = messages.slice(knownMessageCount);
-        await processMessages(newMessages);
+        // FIX #9 guard: if the first new message is an assistant reply but the
+        // session has equal promptCount and assistantCount (meaning we haven't
+        // yet stored the user turn for this exchange), the user message DOM
+        // element was probably filtered out due to empty text during extraction.
+        // Wait 2 s and re-extract so ChatGPT's React render has time to populate
+        // the text node before we process.
+        if (
+          newMessages.length > 0 &&
+          newMessages[0].role === "assistant" &&
+          currentSession.promptCount === currentSession.assistantCount
+        ) {
+          await sleep(2000);
+          messages = extractor.extractAllMessages();
+        }
+        await processMessages(messages.slice(knownMessageCount));
       }
     } finally {
       isProcessing = false;
@@ -279,7 +293,11 @@
         const latestVersion = currentMessages.find(
           (m) => m.index === msg.index && m.role === msg.role
         );
-        const finalText = latestVersion
+        // FIX #9: latestVersion.renderedText can be transiently empty if ChatGPT
+        // re-renders the element between the two extractAllMessages calls (e.g. a
+        // React reconciliation wipes the text node for a split second). Fall back
+        // to the original captured text so storedText is never forced to "".
+        const finalText = (latestVersion && latestVersion.renderedText)
           ? latestVersion.renderedText
           : msg.renderedText;
 
@@ -290,15 +308,16 @@
         const storedText = isAssistantErrorEntry ? "" : normalized;
 
         if (!storedText && msg.role !== "assistant") {
-          // FIX #8: User message with empty rendered text — the platform may not
-          // have finished rendering the text yet (common on ChatGPT where React
-          // adds the DOM element before populating its text content).
-          // DO NOT consume the slot (skip incrementing knownMessageCount) so the
-          // next debounce/poll cycle re-encounters this message with its text.
-          // Breaking here leaves subsequent messages (e.g. the assistant reply)
-          // also un-processed; they will be picked up on the retry.
-          console.warn("[AI Chat Capture] Empty user message at index", msg.index, "— will retry");
-          break;
+          // Empty user message — skip this slot and keep moving. FIX #9 above
+          // prevents genuine text from being lost; if storedText is still empty
+          // here the message really is empty (rare). Continue rather than break
+          // so subsequent messages are not stalled.
+          knownMessageCount += 1;
+          await SessionStorage.updateDomMessageCount(
+            currentSession.sessionId,
+            knownMessageCount
+          );
+          continue;
         }
 
         if (isDuplicateMessage(msg.role, storedText)) {
