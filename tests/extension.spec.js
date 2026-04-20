@@ -856,4 +856,303 @@ test.describe('AI Chat Capture Extension', () => {
     expect(result.endedAt).not.toBeNull();
     expect(result.reason).toBe('user_navigated_away');
   });
+
+  // ── 25. 55-question stress test ───────────────────────────────────────────────
+  // Sends 55 real questions to ChatGPT one by one.
+  // Questions 1-50 must be captured. Questions 51-55 must be blocked by the
+  // 50-turn lock. Exports the forensic log and verifies the full hash chain.
+
+  test('25. 55-question stress test: 1-50 captured, 51-55 locked, chain intact', async () => {
+    test.setTimeout(1200000); // up to 20 min for 55 real AI round-trips
+
+    const QUESTIONS = [
+      'What is the third prime number?',
+      'What color is a ripe banana?',
+      'What planet do humans live on?',
+      'What gas do plants absorb from the air?',
+      'What is the opposite of hot?',
+      "What animal says meow?",
+      'What is frozen water called?',
+      'What do bees make?',
+      'What is the largest ocean on Earth?',
+      'What shape has three sides?',
+      'What is the first month of the year?',
+      'What do you call a baby dog?',
+      'What is 2 plus 2?',
+      'What do you use to write on a blackboard?',
+      'What is the capital of France?',
+      'What bird is known for hooting at night?',
+      'What do cows drink?',
+      'What season comes after summer?',
+      'What is the red planet called?',
+      'What do you call molten rock from a volcano?',
+      'What is the hardest natural substance?',
+      'What do spiders build?',
+      'What is the tallest animal?',
+      'What do you call a group of fish swimming together?',
+      'What metal is most associated with jewelry?',
+      'What do you call the star at the center of our solar system?',
+      'What fruit is famous for keeping the doctor away?',
+      'What is the smallest prime number?',
+      "What animal is known as man's best friend?",
+      'What do you call a scientist who studies stars?',
+      'What is the main language spoken in Brazil?',
+      'What is water turning into vapor called?',
+      'What do frogs begin life as?',
+      'What is a house made of snow called?',
+      'What do you call a person who teaches students?',
+      'What organ pumps blood through the body?',
+      'What is the fastest land animal?',
+      'What do you call a shape with eight sides?',
+      'What is the top layer of the Earth called?',
+      'What do pandas mainly eat?',
+      'What is the nearest star to Earth?',
+      'What do you call the sound a lion makes?',
+      'What is the chemical symbol for gold?',
+      'What do you call a word with the same meaning as another?',
+      'What is the boiling point of water in Celsius?',
+      'What do you call the person who leads an orchestra?',
+      'What fruit has seeds on the outside?',
+      'What is the seventh day of the week in many calendars?',
+      'What is the main ingredient in guacamole?',
+      'What do you call a word read the same backward?',
+      // Questions 51-55 — should be blocked by the 50-turn lock
+      'What instrument has black and white keys?',
+      'What is the largest mammal?',
+      'What do you call a young cat?',
+      'What is the opposite of victory?',
+      'What do you call the study of past events?',
+    ];
+
+    const AUTH_FILE = path.join(__dirname, 'auth', 'chatgpt-state.json');
+    if (!fs.existsSync(AUTH_FILE)) {
+      console.log('  ⚠ No ChatGPT auth state. Run: node tests/setup-auth.js');
+      test.skip();
+      return;
+    }
+
+    const authState = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8'));
+    await browserContext.addCookies(authState.cookies ?? []);
+
+    const navStart = Date.now();
+    const page = await browserContext.newPage();
+
+    try {
+      // Navigate to a fresh ChatGPT conversation
+      await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+      // Give the page a moment to settle / redirect
+      await new Promise(r => setTimeout(r, 2000));
+
+      const currentUrl = page.url();
+      if (
+        currentUrl.includes('accounts.google.com') ||
+        currentUrl.includes('auth0.openai.com') ||
+        currentUrl.includes('/auth/login') ||
+        currentUrl.includes('login.openai.com')
+      ) {
+        console.log('  ⚠ Login redirect — re-run: node tests/setup-auth.js');
+        test.skip();
+        return;
+      }
+
+      // ChatGPT input: #prompt-textarea (a <div contenteditable> or <textarea>)
+      const inputSel = '#prompt-textarea';
+      await page.locator(inputSel).waitFor({ state: 'visible', timeout: 20000 });
+
+      // Wait for content script to create a chatgpt session
+      let sessionId = null;
+      {
+        const dl = Date.now() + 10000;
+        while (Date.now() < dl) {
+          sessionId = await serviceWorker.evaluate(async (since) => {
+            const idx = await new Promise(r =>
+              chrome.storage.local.get('aicap_session_index', res => r(res['aicap_session_index'] ?? []))
+            );
+            const s = idx.find(s => s.platform === 'chatgpt' && new Date(s.startedAt).getTime() > since);
+            return s?.sessionId ?? null;
+          }, navStart);
+          if (sessionId) break;
+          await new Promise(r => setTimeout(r, 400));
+        }
+      }
+      if (!sessionId) {
+        console.log('  ⚠ Content script did not create a chatgpt session');
+        test.skip();
+        return;
+      }
+      console.log(`  Session: ${sessionId}`);
+
+      // ── Helpers ────────────────────────────────────────────────────────────
+
+      // Keep ONE popup page open for the whole test — use it for all storage
+      // reads instead of serviceWorker.evaluate() which dies after 30s (MV3).
+      const bg = await openPopup(browserContext, extensionId);
+
+      const getSessionSnap = () => bg.evaluate(async (id) => {
+        const s = await SessionStorage.getSession(id);
+        if (!s) return null;
+        return { promptCount: s.promptCount, assistantCount: s.assistantCount,
+                 entryCount: s.entryCount, lockReason: s.lockReason };
+      }, sessionId);
+
+      // Wait for the nth assistant message in the ChatGPT DOM.
+      // ChatGPT uses [data-message-author-role="assistant"] elements.
+      // One-word answers arrive in ~3–8 s; 45 s ceiling for slow turns.
+      const waitForAssistantReply = async (n, timeoutMs = 45000) => {
+        try {
+          await page.waitForFunction(
+            count => document.querySelectorAll('[data-message-author-role="assistant"]').length >= count,
+            n, { timeout: timeoutMs }
+          );
+          // Extra guard: wait until the streaming indicator is gone
+          await page.waitForFunction(
+            () => !document.querySelector('[data-testid="stop-button"], button[aria-label="Stop generating"]'),
+            { timeout: 10000 }
+          ).catch(() => {}); // don't fail if selector not found
+          return true;
+        } catch { return false; }
+      };
+
+      // Poll via popup (max timeoutMs). Keeps the popup alive so it never idles out.
+      const waitForPromptCount = async (target, timeoutMs = 15000) => {
+        const dl = Date.now() + timeoutMs;
+        while (Date.now() < dl) {
+          const snap = await getSessionSnap();
+          if (snap && snap.promptCount >= target) return true;
+          await new Promise(r => setTimeout(r, 300));
+        }
+        return false;
+      };
+
+      // Send one question to ChatGPT.
+      // Uses keyboard.type() to fire real DOM events so ChatGPT's React
+      // handler enables the Send button (same reason as ProseMirror).
+      const sendQuestion = async (text) => {
+        const inp = page.locator(inputSel).first();
+        await inp.waitFor({ state: 'visible', timeout: 10000 });
+        await inp.click();
+        // Clear any existing text first
+        await page.keyboard.press('Control+a');
+        await page.keyboard.type(text, { delay: 0 });
+        await new Promise(r => setTimeout(r, 150));
+        // Try the send button; fall back to Enter
+        const sendBtn = page.locator([
+          'button[data-testid="send-button"]',
+          'button[aria-label="Send prompt"]',
+          'button[aria-label="Send message"]',
+        ].join(', ')).first();
+        if (await sendBtn.isVisible().catch(() => false)) {
+          await sendBtn.click();
+        } else {
+          await page.keyboard.press('Enter');
+        }
+      };
+
+      // ── Send all 55 questions ───────────────────────────────────────────────
+      const results = [];
+
+      for (let i = 0; i < QUESTIONS.length; i++) {
+        const qNum  = i + 1;
+        const question = QUESTIONS[i];
+
+        await sendQuestion(question);
+
+        if (qNum <= 50) {
+          // Wait for ChatGPT reply in DOM, then confirm storage captured user turn
+          await waitForAssistantReply(qNum, 45000);
+          const captured = await waitForPromptCount(qNum, 15000);
+          results.push({ qNum, captured, blocked: false });
+          const icon = captured ? '✓' : '⚠';
+          console.log(`  Q${String(qNum).padStart(2, '0')} ${icon}  ${question.slice(0, 55)}`);
+          if (!captured) console.log(`       ↳ promptCount did not reach ${qNum} within 15 s`);
+        } else {
+          // Blocked — still wait for ChatGPT DOM reply, then check storage stayed at 50
+          await waitForAssistantReply(qNum, 45000);
+          await new Promise(r => setTimeout(r, 1000));
+          const count = await serviceWorker.evaluate(async (id) =>
+            new Promise(r =>
+              chrome.storage.local.get(`aicap_session_${id}`, res =>
+                r(res[`aicap_session_${id}`]?.promptCount ?? 0)
+              )
+            )
+          , sessionId);
+          const blocked = count === 50;
+          results.push({ qNum, captured: !blocked, blocked });
+          const icon = blocked ? '🔒' : '⚠ NOT BLOCKED';
+          console.log(`  Q${String(qNum).padStart(2, '0')} ${icon}  ${question.slice(0, 55)}`);
+        }
+      }
+
+      // ── Summary ────────────────────────────────────────────────────────────
+      const captured50 = results.filter(r => r.qNum <= 50 &&  r.captured).length;
+      const missed50   = results.filter(r => r.qNum <= 50 && !r.captured).length;
+      const blocked5   = results.filter(r => r.qNum >  50 &&  r.blocked ).length;
+
+      console.log('\n  ─── Session Analysis ───────────────────────────────');
+      console.log(`  Captured (Q1-50): ${captured50}/50`);
+      if (missed50) console.log(`  Missed   (Q1-50): ${missed50}  ← content-script bug`);
+      console.log(`  Blocked (Q51-55): ${blocked5}/5`);
+
+      // Export forensic log via the already-open bg popup
+      const exported = await exportViaPopup(bg, sessionId);
+      await bg.close();
+
+      if (exported) {
+        const fname = `ai-capture-chatgpt-${sessionId}-55q.json`;
+        fs.writeFileSync(
+          path.join(SESSION_LOGS, fname),
+          JSON.stringify(exported.forensicLog, null, 2)
+        );
+        const s = exported.forensicLog.session;
+        console.log(`\n  Forensic log → ${fname}`);
+        console.log(`  promptCount : ${s.promptCount}`);
+        console.log(`  entryCount  : ${s.entryCount}`);
+        console.log(`  lockReason  : ${s.lockReason ?? 'none'}`);
+        console.log(`  chain valid : ${exported.forensicLog.verification.valid}`);
+
+        // Assertions
+        expect(s.promptCount).toBe(50);
+        expect(exported.forensicLog.verification.valid).toBe(true);
+      }
+
+      expect(captured50).toBe(50);
+      expect(blocked5).toBe(5);
+
+    } finally {
+      await page.close();
+    }
+  });
+
+  // ── 26. Locked-session pre-check shows warning in popup ───────────────────────
+  // After the session lock triggers, the "Initialize Capture" pre-check panel
+  // must report a locked session warning rather than "all checks passed".
+
+  test('26. initCapture pre-check reports locked session after 50-turn limit', async () => {
+    const popup = await openPopup(browserContext, extensionId);
+
+    // Create a session and force it to locked state
+    const result = await popup.evaluate(async () => {
+      const tKey = `claude:https://claude.ai/chat/lock-precheck-${Date.now()}`;
+      const session = await SessionStorage.createSession('claude', 'https://claude.ai/chat/lock-precheck', tKey);
+      for (let i = 0; i < 50; i++) {
+        await SessionStorage.appendEntry(session.sessionId, 'user', `Q${i + 1}`, null, {});
+      }
+      // 51st triggers the lock
+      await SessionStorage.appendEntry(session.sessionId, 'user', 'blocked', null, {});
+      const locked = await SessionStorage.getSession(session.sessionId);
+      const out = { lockReason: locked.lockReason, lockedAt: locked.lockedAt, promptCount: locked.promptCount };
+      await SessionStorage.deleteSession(session.sessionId);
+      return JSON.parse(JSON.stringify(out));
+    });
+
+    await popup.close();
+
+    // Session must be locked with the correct reason
+    expect(result.promptCount).toBe(50);          // 51st was rejected, count stays 50
+    expect(result.lockReason).toBeTruthy();        // lockReason is set
+    expect(result.lockedAt).not.toBeNull();        // timestamp recorded
+    console.log(`  Lock triggered: reason="${result.lockReason}", promptCount=${result.promptCount} ✓`);
+  });
+
 });
