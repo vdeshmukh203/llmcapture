@@ -290,13 +290,15 @@
         const storedText = isAssistantErrorEntry ? "" : normalized;
 
         if (!storedText && msg.role !== "assistant") {
-          knownMessageCount += 1;
-          // FIX #2: Persist updated DOM message count after every increment.
-          await SessionStorage.updateDomMessageCount(
-            currentSession.sessionId,
-            knownMessageCount
-          );
-          continue;
+          // FIX #8: User message with empty rendered text — the platform may not
+          // have finished rendering the text yet (common on ChatGPT where React
+          // adds the DOM element before populating its text content).
+          // DO NOT consume the slot (skip incrementing knownMessageCount) so the
+          // next debounce/poll cycle re-encounters this message with its text.
+          // Breaking here leaves subsequent messages (e.g. the assistant reply)
+          // also un-processed; they will be picked up on the retry.
+          console.warn("[AI Chat Capture] Empty user message at index", msg.index, "— will retry");
+          break;
         }
 
         if (isDuplicateMessage(msg.role, storedText)) {
