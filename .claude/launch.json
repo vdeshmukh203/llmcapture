@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Landing Page (static)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "."],
+      "port": 8080
+    },
+    {
+      "name": "Chain Verifier (static)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8081", "--directory", "."],
+      "port": 8081
+    }
+  ]
+}
