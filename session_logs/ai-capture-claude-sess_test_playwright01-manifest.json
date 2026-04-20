@@ -1,0 +1,25 @@
+{
+  "_format": "ai-chat-capture-study-manifest-v1",
+  "_exportedAt": "2026-04-19T23:35:20.413Z",
+  "sessionId": "sess_test_playwright01",
+  "platform": "claude",
+  "url": "https://claude.ai/chat/test-playwright",
+  "threadKey": "claude:https://claude.ai/chat/test-playwright",
+  "startedAt": "2026-04-19T23:35:18.435Z",
+  "endedAt": null,
+  "sessionStatus": "active",
+  "integrityStatus": "tampered",
+  "promptCount": 1,
+  "assistantCount": 1,
+  "entryCount": 2,
+  "duplicateCount": 0,
+  "errorCount": 0,
+  "recoveredFromReloadCount": 0,
+  "sessionLocked": false,
+  "lockReason": null,
+  "verificationValid": false,
+  "files": {
+    "forensicLog": "ai-capture-claude-sess_test_playwright01.json",
+    "studyManifest": "ai-capture-claude-sess_test_playwright01-manifest.json"
+  }
+}
