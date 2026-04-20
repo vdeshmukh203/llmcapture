@@ -924,9 +924,9 @@ test.describe('AI Chat Capture Extension', () => {
       'What do you call the study of past events?',
     ];
 
-    const AUTH_FILE = path.join(__dirname, 'auth', 'chatgpt-state.json');
+    const AUTH_FILE = path.join(__dirname, 'auth', 'gemini-state.json');
     if (!fs.existsSync(AUTH_FILE)) {
-      console.log('  ⚠ No ChatGPT auth state. Run: node tests/setup-auth.js');
+      console.log('  ⚠ No Gemini auth state. Run: node tests/setup-auth.js');
       test.skip();
       return;
     }
@@ -938,27 +938,27 @@ test.describe('AI Chat Capture Extension', () => {
     const page = await browserContext.newPage();
 
     try {
-      // Navigate to a fresh ChatGPT conversation
-      await page.goto('https://chatgpt.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+      // Navigate to a fresh Gemini conversation
+      await page.goto('https://gemini.google.com/app', { waitUntil: 'domcontentloaded', timeout: 30000 });
 
       // Give the page a moment to settle / redirect
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 3000));
 
       const currentUrl = page.url();
       if (
         currentUrl.includes('accounts.google.com') ||
-        currentUrl.includes('auth0.openai.com') ||
-        currentUrl.includes('/auth/login') ||
-        currentUrl.includes('login.openai.com')
+        currentUrl.includes('google.com/signin') ||
+        currentUrl.includes('/auth/') ||
+        currentUrl.includes('login')
       ) {
         console.log('  ⚠ Login redirect — re-run: node tests/setup-auth.js');
         test.skip();
         return;
       }
 
-      // ChatGPT input: #prompt-textarea (a <div contenteditable> or <textarea>)
-      const inputSel = '#prompt-textarea';
-      await page.locator(inputSel).waitFor({ state: 'visible', timeout: 20000 });
+      // Gemini input: Quill editor inside rich-textarea web component
+      const inputSel = 'rich-textarea .ql-editor, .ql-editor[contenteditable]';
+      await page.locator(inputSel).first().waitFor({ state: 'visible', timeout: 30000 });
 
       // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -966,18 +966,14 @@ test.describe('AI Chat Capture Extension', () => {
       // reads instead of serviceWorker.evaluate() which dies after 30s (MV3).
       const bg = await openPopup(browserContext, extensionId);
 
-      // IMPORTANT: ChatGPT redirects chatgpt.com/ → chatgpt.com/c/THREAD_ID on
-      // the first message. The content script detects this URL change and creates
-      // a NEW session for the thread URL. We must NOT pin to the landing-page
-      // session. Instead, always resolve the most recently started chatgpt session
-      // (created after navStart) each time we poll — this automatically follows
-      // the URL change.
+      // IMPORTANT: Gemini redirects gemini.google.com/app → gemini.google.com/app/THREAD_ID
+      // on the first message. Track the most recent gemini session dynamically.
       const getMostRecentSession = () => bg.evaluate(async (since) => {
         const idx = await new Promise(r =>
           chrome.storage.local.get('aicap_session_index', res => r(res['aicap_session_index'] ?? []))
         );
         const candidates = idx
-          .filter(s => s.platform === 'chatgpt' && new Date(s.startedAt).getTime() > since)
+          .filter(s => s.platform === 'gemini' && new Date(s.startedAt).getTime() > since)
           .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
         if (!candidates.length) return null;
         const s = await SessionStorage.getSession(candidates[0].sessionId);
@@ -991,7 +987,7 @@ test.describe('AI Chat Capture Extension', () => {
         };
       }, navStart);
 
-      // Wait for content script to create at least one chatgpt session
+      // Wait for content script to create at least one gemini session
       {
         const dl = Date.now() + 10000;
         while (Date.now() < dl) {
@@ -1001,7 +997,7 @@ test.describe('AI Chat Capture Extension', () => {
         }
         const snap = await getMostRecentSession();
         if (!snap) {
-          console.log('  ⚠ Content script did not create a chatgpt session');
+          console.log('  ⚠ Content script did not create a gemini session');
           test.skip();
           return;
         }
@@ -1010,19 +1006,19 @@ test.describe('AI Chat Capture Extension', () => {
       // Alias — always resolves the current active session (handles URL change)
       const getSessionSnap = getMostRecentSession;
 
-      // Wait for the nth assistant message in the ChatGPT DOM.
-      // ChatGPT uses [data-message-author-role="assistant"] elements.
+      // Wait for the nth assistant message in the Gemini DOM.
+      // Gemini uses <model-response> custom elements.
       // One-word answers arrive in ~3–8 s; 45 s ceiling for slow turns.
       const waitForAssistantReply = async (n, timeoutMs = 45000) => {
         try {
           await page.waitForFunction(
-            count => document.querySelectorAll('[data-message-author-role="assistant"]').length >= count,
+            count => document.querySelectorAll('model-response').length >= count,
             n, { timeout: timeoutMs }
           );
-          // Extra guard: wait until the streaming indicator is gone
+          // Extra guard: wait until the streaming stop button is gone
           await page.waitForFunction(
-            () => !document.querySelector('[data-testid="stop-button"], button[aria-label="Stop generating"]'),
-            { timeout: 10000 }
+            () => !document.querySelector('button[aria-label="Stop generation"], button[aria-label*="Stop"]'),
+            { timeout: 15000 }
           ).catch(() => {}); // don't fail if selector not found
           return true;
         } catch { return false; }
@@ -1041,9 +1037,8 @@ test.describe('AI Chat Capture Extension', () => {
         return false;
       };
 
-      // Send one question to ChatGPT.
-      // Uses keyboard.type() to fire real DOM events so ChatGPT's React
-      // handler enables the Send button (same reason as ProseMirror).
+      // Send one question to Gemini.
+      // Uses keyboard.type() to fire Quill editor events.
       const sendQuestion = async (text) => {
         const inp = page.locator(inputSel).first();
         await inp.waitFor({ state: 'visible', timeout: 10000 });
@@ -1052,11 +1047,12 @@ test.describe('AI Chat Capture Extension', () => {
         await page.keyboard.press('Control+a');
         await page.keyboard.type(text, { delay: 0 });
         await new Promise(r => setTimeout(r, 150));
-        // Try the send button; fall back to Enter
+        // Try Gemini send button; fall back to Enter
         const sendBtn = page.locator([
-          'button[data-testid="send-button"]',
-          'button[aria-label="Send prompt"]',
           'button[aria-label="Send message"]',
+          'button[aria-label*="Send"]',
+          'button.send-button',
+          'mat-icon-button[aria-label*="Send"]',
         ].join(', ')).first();
         if (await sendBtn.isVisible().catch(() => false)) {
           await sendBtn.click();
@@ -1075,7 +1071,7 @@ test.describe('AI Chat Capture Extension', () => {
         await sendQuestion(question);
 
         if (qNum <= 50) {
-          // Wait for ChatGPT reply in DOM, then confirm storage captured user turn
+          // Wait for Gemini reply in DOM, then confirm storage captured user turn
           await waitForAssistantReply(qNum, 45000);
           const captured = await waitForPromptCount(qNum, 25000);
           results.push({ qNum, captured, blocked: false });
@@ -1083,7 +1079,7 @@ test.describe('AI Chat Capture Extension', () => {
           console.log(`  Q${String(qNum).padStart(2, '0')} ${icon}  ${question.slice(0, 55)}`);
           if (!captured) console.log(`       ↳ promptCount did not reach ${qNum} within 25 s`);
         } else {
-          // Blocked — still wait for ChatGPT DOM reply, then verify session is locked.
+          // Blocked — still wait for Gemini DOM reply, then verify session is locked.
           // The lock can fire via either the user-message path (promptCount >= 50 rejects
           // the user turn) or the assistant-message path (assistantCount >= 50 sets the
           // lock flag). Either way, lockReason being set is the definitive signal.
@@ -1116,7 +1112,7 @@ test.describe('AI Chat Capture Extension', () => {
       await bg.close();
 
       if (exported) {
-        const fname = `ai-capture-chatgpt-${finalSessionId}-55q.json`;
+        const fname = `ai-capture-gemini-${finalSessionId}-55q.json`;
         fs.writeFileSync(
           path.join(SESSION_LOGS, fname),
           JSON.stringify(exported.forensicLog, null, 2)
