@@ -17,7 +17,7 @@
         </div>
         <h1>AI Chat Capture</h1>
       </div>
-      <div class="version">v11.1</div>
+      <div class="version">v12.0</div>
     </header>
 
     <section class="status-section">
@@ -68,8 +68,14 @@
         <button id="refreshStatus" class="btn btn-secondary btn-half">Refresh</button>
         <button id="forceCapture" class="btn btn-secondary btn-half">Force Capture</button>
       </div>
-      <div id="debugNote" class="debug-note">
-        For manual realtime testing: keep the chat tab active, type normally, then reopen this popup and press Refresh or Force Capture.
+      <button id="initCapture" class="btn btn-primary">Initialize &amp; Verify</button>
+      <div id="preCheckPanel" class="precheck-panel hidden"></div>
+    </section>
+
+    <section class="livefeed-section">
+      <h2 id="liveFeedHeader">Live Feed</h2>
+      <div id="liveFeed" class="feed-panel">
+        <div class="feed-empty">No active session.</div>
       </div>
     </section>
 

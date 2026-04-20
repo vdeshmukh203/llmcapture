@@ -9,8 +9,6 @@
   let currentSession = null;
   let knownMessageCount = 0;
   let isCapturing = false;
-  let isProcessing = false;         // FIX #1: re-entrancy lock for processMessages
-  let rawInputInitialized = false;  // FIX #6: guard InputCapture.init() to run once
   let debounceTimer = null;
   let extractor = null;
   let observer = null;
@@ -19,6 +17,19 @@
   let initPromise = null;
   let currentThreadKey = null;
   let lastKnownUrl = null;
+  let lastDebug = {
+    stage: "boot",
+    reason: "not_initialized",
+    captureEnabled: null,
+    threadKey: null,
+    lastError: null,
+    extractorFound: false,
+    lastMessageScanCount: 0,
+  };
+
+  function setDebug(patch) {
+    lastDebug = { ...lastDebug, ...patch };
+  }
 
   function detectPlatform() {
     const url = window.location.href;
@@ -56,15 +67,13 @@
 
   async function loadSettings() {
     settingsCache = await SessionStorage.getSettings();
+    setDebug({ captureEnabled: !!settingsCache.captureEnabled });
     return settingsCache;
   }
 
-  // FIX #6: Guard InputCapture.init() so it is called at most once per
-  // content script lifetime, regardless of how often startOrResumeSession runs.
   function ensureRawInputCapture(settings) {
-    if (settings.captureRawInput && !rawInputInitialized) {
+    if (settings.captureRawInput) {
       InputCapture.init();
-      rawInputInitialized = true;
       console.log("[AI Chat Capture] Raw input capture enabled");
     }
   }
@@ -80,8 +89,9 @@
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
         await syncCaptureCycle();
-      }, DEBOUNCE_DELAY);
+      }, extractor.DEBOUNCE_DELAY || DEBOUNCE_DELAY); // per-extractor override; falls back to 1500ms
     });
+    setDebug({ stage: "observer_bound", reason: "observer_active" });
   }
 
   async function finalizeCurrentSession(reason) {
@@ -92,14 +102,23 @@
     currentThreadKey = null;
     knownMessageCount = 0;
     isCapturing = false;
+    setDebug({ stage: "finalized", reason: reason || "finalized", threadKey: null });
   }
 
   async function startOrResumeSession(reason) {
     const settings = settingsCache || (await loadSettings());
     extractor = detectPlatform();
+    setDebug({
+      stage: "start_or_resume",
+      reason: reason || "manual",
+      extractorFound: !!extractor,
+      captureEnabled: !!settings.captureEnabled,
+      lastError: null,
+    });
 
     if (!extractor) {
       console.log("[AI Chat Capture] No supported platform detected");
+      setDebug({ stage: "unsupported", reason: "no_supported_platform" });
       return false;
     }
 
@@ -108,11 +127,16 @@
     if (!settings.captureEnabled) {
       console.log("[AI Chat Capture] Capture disabled in settings");
       isCapturing = false;
+      setDebug({ stage: "disabled", reason: "capture_disabled_in_settings" });
       return false;
     }
 
     const nextThreadKey = getThreadKey();
-    if (!nextThreadKey) return false;
+    setDebug({ threadKey: nextThreadKey || null });
+    if (!nextThreadKey) {
+      setDebug({ stage: "blocked", reason: "missing_thread_key" });
+      return false;
+    }
 
     if (currentSession && currentThreadKey !== nextThreadKey) {
       await finalizeCurrentSession(reason || "thread_changed");
@@ -120,48 +144,55 @@
 
     if (currentSession && currentThreadKey === nextThreadKey) {
       isCapturing = !currentSession.lockedAt;
+      setDebug({ stage: "resumed", reason: "existing_session", threadKey: currentThreadKey });
       return true;
     }
 
-    const result = await SessionStorage.getOrCreateActiveSession(
-      extractor.PLATFORM,
-      window.location.href,
-      nextThreadKey
-    );
+    try {
+      const result = await SessionStorage.getOrCreateActiveSession(
+        extractor.PLATFORM,
+        window.location.href,
+        nextThreadKey
+      );
 
-    currentSession = result.session;
-    currentThreadKey = nextThreadKey;
-    lastKnownUrl = window.location.href;
+      currentSession = result.session;
+      currentThreadKey = nextThreadKey;
+      lastKnownUrl = window.location.href;
+      knownMessageCount = currentSession.entryCount;
+      isCapturing = !currentSession.lockedAt;
 
-    // FIX #2: Restore knownMessageCount from the persisted domMessageCount field
-    // rather than entryCount. entryCount includes error stubs and other synthetic
-    // chain entries that do not correspond to DOM message nodes. Using entryCount
-    // causes a desync after reload, leading to missed or re-processed messages.
-    knownMessageCount = currentSession.domMessageCount || 0;
+      bindObserver();
 
-    isCapturing = !currentSession.lockedAt;
+      chrome.runtime.sendMessage({
+        type: "SESSION_STARTED",
+        sessionId: currentSession.sessionId,
+        platform: extractor.PLATFORM,
+        resumed: result.resumed,
+        locked: !!currentSession.lockedAt,
+      });
 
-    bindObserver();
+      console.log(
+        `[AI Chat Capture] ${result.resumed ? "Recovered" : "Started"} session ${currentSession.sessionId} (${currentThreadKey})`
+      );
 
-    chrome.runtime.sendMessage({
-      type: "SESSION_STARTED",
-      sessionId: currentSession.sessionId,
-      platform: extractor.PLATFORM,
-      resumed: result.resumed,
-      locked: !!currentSession.lockedAt,
-    });
+      setDebug({
+        stage: result.resumed ? "session_resumed" : "session_started",
+        reason: result.resumed ? "existing_active_session" : "new_session_created",
+        threadKey: currentThreadKey,
+      });
 
-    console.log(
-      `[AI Chat Capture] ${result.resumed ? "Recovered" : "Started"} session ${currentSession.sessionId} (${currentThreadKey})`
-    );
-
-    return true;
+      return true;
+    } catch (error) {
+      setDebug({ stage: "session_error", reason: "get_or_create_failed", lastError: String(error) });
+      throw error;
+    }
   }
 
   async function initCapture() {
     if (initPromise) return initPromise;
 
     initPromise = (async () => {
+      setDebug({ stage: "init_capture", reason: "starting_init" });
       const started = await startOrResumeSession("init");
 
       if (!pollIntervalId) {
@@ -172,6 +203,10 @@
 
       if (started) {
         await pollAndCapture();
+      }
+
+      if (!started) {
+        setDebug({ stage: "init_complete", reason: lastDebug.reason || "not_started" });
       }
 
       return started;
@@ -193,22 +228,34 @@
         if (currentSession) {
           await finalizeCurrentSession("left_supported_platform");
         }
+        setDebug({ stage: "sync", reason: "no_supported_platform" });
         return;
       }
 
       extractor = nextExtractor;
 
-      if (currentUrl !== lastKnownUrl || getThreadKey() !== currentThreadKey) {
+      // FIX: removed `currentUrl !== lastKnownUrl` from the condition.
+      // Gemini silently strips UTM params from window.location.href mid-session,
+      // causing lastKnownUrl !== currentUrl to become true on the next poll even
+      // though the thread hasn't changed. This triggered startOrResumeSession →
+      // bindObserver, spawning a new debounce timer while the old one was still
+      // armed — producing multiple concurrent syncCaptureCycle chains, corrupted
+      // turn counters, and post-lock entry commits (sess_mo5343m6, 2026-04-19).
+      // getThreadKey() uses origin+pathname only and is the correct change detector.
+      if (getThreadKey() !== currentThreadKey) {
         await startOrResumeSession("thread_changed");
       }
 
-      lastKnownUrl = currentUrl;
+      lastKnownUrl = currentUrl; // retained for debug/status display only
 
       if (isCapturing) {
         await pollAndCapture();
+      } else {
+        setDebug({ stage: "sync_idle", reason: lastDebug.reason || "capture_not_active" });
       }
     } catch (error) {
       console.error("[AI Chat Capture] syncCaptureCycle failed", error);
+      setDebug({ stage: "sync_error", reason: "syncCaptureCycle_failed", lastError: String(error) });
       if (currentSession) {
         await SessionStorage.logSessionError(
           currentSession.sessionId,
@@ -220,21 +267,21 @@
   }
 
   async function pollAndCapture() {
-    // FIX #1: Re-entrancy lock. waitForStreamingComplete() blocks 6+ seconds per
-    // assistant turn. Without this guard, the debounce observer, poll interval,
-    // and FORCE_CAPTURE can all call processMessages concurrently, reading the
-    // same knownMessageCount and producing duplicate chain entries.
-    if (!extractor || !isCapturing || !currentSession || isProcessing) return;
+    if (!extractor || !isCapturing || !currentSession) return;
 
-    isProcessing = true;
-    try {
-      const messages = extractor.extractAllMessages();
-      if (messages.length > knownMessageCount) {
-        const newMessages = messages.slice(knownMessageCount);
-        await processMessages(newMessages);
-      }
-    } finally {
-      isProcessing = false;
+    // FIX: abort if thread has changed since this cycle was dispatched.
+    // Without this guard, observer callbacks firing during thread navigation
+    // cause pollAndCapture to run against transiently-visible DOM content
+    // from the destination thread before currentThreadKey has updated,
+    // committing ghost entries into the wrong session's chain
+    // (observed as CP4–CP6 in sess_mo56e5mg, 2026-04-19).
+    if (getThreadKey() !== currentThreadKey) return;
+
+    const messages = extractor.extractAllMessages();
+    setDebug({ stage: "poll", reason: "message_scan", lastMessageScanCount: messages.length });
+    if (messages.length > knownMessageCount) {
+      const newMessages = messages.slice(knownMessageCount);
+      await processMessages(newMessages);
     }
   }
 
@@ -255,11 +302,14 @@
   function isDuplicateMessage(role, renderedText) {
     if (!currentSession || currentSession.entries.length === 0) return false;
 
-    const lastEntry = currentSession.entries[currentSession.entries.length - 1];
-    return (
-      lastEntry.role === role &&
-      normalizeText(lastEntry.renderedText) === normalizeText(renderedText)
-    );
+    // FIX: compare against the last entry of the same role, not the last entry
+    // overall. Previous implementation missed duplicates when roles alternated:
+    // a stale assistant DOM node appearing after a user entry was never compared
+    // against the prior assistant entry, allowing it through as a new capture
+    // (observed as CP:5 in sess_mo4itkoh, 2026-04-18).
+    const lastSameRole = [...currentSession.entries].reverse().find(e => e.role === role);
+    if (!lastSameRole) return false;
+    return normalizeText(lastSameRole.renderedText) === normalizeText(renderedText);
   }
 
   async function processMessages(messages) {
@@ -291,11 +341,6 @@
 
         if (!storedText && msg.role !== "assistant") {
           knownMessageCount += 1;
-          // FIX #2: Persist updated DOM message count after every increment.
-          await SessionStorage.updateDomMessageCount(
-            currentSession.sessionId,
-            knownMessageCount
-          );
           continue;
         }
 
@@ -308,10 +353,6 @@
             }
           );
           knownMessageCount += 1;
-          await SessionStorage.updateDomMessageCount(
-            currentSession.sessionId,
-            knownMessageCount
-          );
           continue;
         }
 
@@ -333,15 +374,11 @@
         );
 
         knownMessageCount += 1;
-        // FIX #2: Persist DOM count after every successful processed message.
-        await SessionStorage.updateDomMessageCount(
-          currentSession.sessionId,
-          knownMessageCount
-        );
 
         if (!appendResult) continue;
 
         currentSession = appendResult.session;
+        setDebug({ stage: "captured", reason: `entry_added_${msg.role}` });
 
         if (appendResult.rejected) {
           isCapturing = false;
@@ -376,6 +413,7 @@
         }
       } catch (error) {
         console.error("[AI Chat Capture] processMessages failed", error);
+        setDebug({ stage: "process_error", reason: "processMessages_failed", lastError: String(error) });
         await SessionStorage.logSessionError(
           currentSession.sessionId,
           "processMessages failed",
@@ -424,6 +462,7 @@
         promptCount: currentSession ? currentSession.promptCount : 0,
         locked: currentSession ? !!currentSession.lockedAt : false,
         lockReason: currentSession ? currentSession.lockReason : null,
+        debug: lastDebug,
       });
       return true;
     }
@@ -439,6 +478,7 @@
         });
       } else {
         isCapturing = false;
+        setDebug({ stage: "paused", reason: "toggle_capture_disabled" });
         sendResponse({ isCapturing });
       }
       return true;
@@ -457,6 +497,7 @@
     if (message.type === "SETTINGS_UPDATED") {
       loadSettings().then((settings) => {
         ensureRawInputCapture(settings);
+        setDebug({ captureEnabled: !!settings.captureEnabled, stage: "settings_updated", reason: "settings_reloaded" });
       });
       return true;
     }

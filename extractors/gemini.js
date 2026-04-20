@@ -2,6 +2,7 @@ var GeminiExtractor = (function () {
   "use strict";
 
   const PLATFORM = "gemini";
+  const DEBOUNCE_DELAY = 2500; // Gemini DOM settles slower than ChatGPT/Claude
 
   const SELECTORS = {
     userMessage: 'user-query, [data-message-author="user"], message-content[data-author-type="user"], .user-query, .query-content',
@@ -9,11 +10,21 @@ var GeminiExtractor = (function () {
     messageContent: '.markdown-main-panel, .response-container-content, .markdown, .message-text',
     conversationContainer: '.conversation-container, .chat-history, main, [role="main"]',
     inputArea: '.ql-editor, .text-input-field, textarea, [contenteditable="true"], rich-textarea .ql-editor',
-    // FIX: Added send button selector — previously absent, causing button-click
-    // submissions to have no submittedAt in input-capture's history.
-    sendButton: 'button[aria-label*="Send"], button[aria-label*="send"], button.send-button, [data-testid*="send-button"], mat-icon-button[aria-label*="Send"]',
     turnContainer: '.conversation-turn, .chat-turn, .turn-container, model-response, user-query',
   };
+
+  // Selectors that indicate substantive new message content (not UI chrome).
+  // Used by observeNewMessages to filter out post-streaming decoration mutations.
+  const MESSAGE_TRIGGER_SELECTORS = [
+    "user-query",
+    "model-response",
+    '[data-message-author="user"]',
+    '[data-message-author="model"]',
+    'message-content[data-author-type="user"]',
+    'message-content[data-author-type="model"]',
+    ".model-response-text",
+    ".response-container-content",
+  ].join(",");
 
   function isMatch(url) {
     return url.includes("gemini.google.com");
@@ -22,7 +33,10 @@ var GeminiExtractor = (function () {
   function cleanUserEchoText(text) {
     const normalized = (text || "").replace(/\s+/g, " ").trim();
     if (!normalized) return "";
-    return normalized.replace(/^You said\s+/i, "").trim();
+    // FIX: strip both "You said" and "Gemini said" UI-injected prefixes.
+    // Previously only "You said" was stripped; "Gemini said" leaked into
+    // pre-settle assistant captures (CP:2 in the live log, 2026-04-18).
+    return normalized.replace(/^(You said|Gemini said)\s+/i, "").trim();
   }
 
   function extractUserText(element) {
@@ -169,12 +183,9 @@ var GeminiExtractor = (function () {
   function getThreadKey() {
     try {
       const parsed = new URL(window.location.href);
-      // FIX: Strip query string entirely. Gemini conversation identity is solely
-      // in the path (/app/THREAD_ID). Including parsed.search caused 15+ tracking
-      // params (gclid, gbraid, UTM etc.) to enter the threadKey, making it 483
-      // chars long and breaking session resume when the user navigates back via
-      // a different ad click (different gclid = different key = new session created
-      // instead of resuming the existing one).
+      // FIX: strip search entirely — UTM/tracking params make threadKey
+      // non-deterministic for the same conversation thread, breaking session
+      // resumption and fingerprint reproducibility (sess_mo4itkoh, 2026-04-18).
       return `${parsed.origin}${parsed.pathname}`;
     } catch (e) {
       return window.location.href;
@@ -187,17 +198,27 @@ var GeminiExtractor = (function () {
       document.querySelector("main") ||
       document.body;
 
+    // FIX: only trigger callback when a substantive message node is added.
+    // Previously any addedNodes fired the callback, causing Gemini's
+    // post-streaming decoration mutations (copy buttons, formatting wrappers,
+    // toolbar chrome) to reset the debounce timer repeatedly — producing
+    // duplicateCount:3 against entryCount:4 in the 2026-04-18 live capture.
     const observer = new MutationObserver((mutations) => {
       let hasNewContent = false;
       for (const mutation of mutations) {
-        if (mutation.addedNodes.length > 0) {
-          hasNewContent = true;
-          break;
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType !== 1) continue;
+          if (
+            node.matches?.(MESSAGE_TRIGGER_SELECTORS) ||
+            node.querySelector?.(MESSAGE_TRIGGER_SELECTORS)
+          ) {
+            hasNewContent = true;
+            break;
+          }
         }
+        if (hasNewContent) break;
       }
-      if (hasNewContent) {
-        callback();
-      }
+      if (hasNewContent) callback();
     });
 
     observer.observe(container, {
@@ -210,6 +231,7 @@ var GeminiExtractor = (function () {
 
   return {
     PLATFORM,
+    DEBOUNCE_DELAY,
     SELECTORS,
     isMatch,
     extractAllMessages,
