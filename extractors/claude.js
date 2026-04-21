@@ -31,15 +31,29 @@ var ClaudeExtractor = (function () {
 
     const allTurns = [];
 
+    // User messages: always use the known-working direct selector. Do NOT fall
+    // through to extractByStructure() for user messages — that path can silently
+    // return [] if the container query picks the wrong element, breaking capture.
     userEls.forEach((el) => {
       const rect = el.getBoundingClientRect();
       allTurns.push({ role: "user", element: el, y: rect.top + window.scrollY });
     });
 
-    assistantEls.forEach((el) => {
-      const rect = el.getBoundingClientRect();
-      allTurns.push({ role: "assistant", element: el, y: rect.top + window.scrollY });
-    });
+    if (assistantEls.length > 0) {
+      // Assistant selector is working — use it directly.
+      assistantEls.forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        allTurns.push({ role: "assistant", element: el, y: rect.top + window.scrollY });
+      });
+    } else if (userEls.length > 0) {
+      // Assistant selector yielded nothing (stale/changed DOM). Try to locate
+      // assistant turns by DOM proximity: each assistant response is typically
+      // the next top-level sibling of the user message's container ancestor.
+      findAssistantsByProximity(userEls).forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        allTurns.push({ role: "assistant", element: el, y: rect.top + window.scrollY });
+      });
+    }
 
     allTurns.sort((a, b) => a.y - b.y);
 
@@ -62,11 +76,69 @@ var ClaudeExtractor = (function () {
     return messages;
   }
 
+  // Returns the direct child of `container` that is an ancestor of `el`,
+  // or null when `el` is not a descendant of `container`.
+  function getTopLevelChild(el, container) {
+    let current = el;
+    while (current && current.parentElement !== container) {
+      current = current.parentElement;
+    }
+    return current !== container ? current : null;
+  }
+
+  // Locates assistant response elements by walking the DOM siblings that
+  // immediately follow each user message's container anchor. Used when the
+  // specific assistant-message CSS selector matches nothing.
+  function findAssistantsByProximity(userEls) {
+    const found = [];
+    const seen  = new Set();
+
+    // Prefer main > [role="main"] — more specific than [class*="conversation"]
+    // which can match sidebar/header elements that appear earlier in the DOM.
+    const container =
+      document.querySelector("main") ||
+      document.querySelector('[role="main"]') ||
+      document.querySelector(SELECTORS.conversationContainer);
+    if (!container) return found;
+
+    Array.from(userEls).forEach((userEl) => {
+      const anchor = getTopLevelChild(userEl, container);
+      if (!anchor || seen.has(anchor)) return;
+      seen.add(anchor);
+
+      // Walk forward from the anchor to find the first non-user sibling with
+      // meaningful text — that is the assistant response for this turn.
+      let sibling = anchor.nextElementSibling;
+      while (sibling) {
+        if (
+          sibling.matches(SELECTORS.userMessage) ||
+          sibling.querySelector(SELECTORS.userMessage)
+        ) {
+          break; // Hit the next user turn; no response exists for this turn yet.
+        }
+        if (!seen.has(sibling)) {
+          const contentEl =
+            sibling.querySelector(SELECTORS.messageContent) || sibling;
+          const text = extractTextContent(contentEl).trim();
+          if (text) {
+            seen.add(sibling);
+            found.push(sibling);
+            break;
+          }
+        }
+        sibling = sibling.nextElementSibling;
+      }
+    });
+
+    return found;
+  }
+
   function extractByStructure() {
     const messages = [];
     const container =
-      document.querySelector(SELECTORS.conversationContainer) ||
-      document.querySelector("main");
+      document.querySelector("main") ||
+      document.querySelector('[role="main"]') ||
+      document.querySelector(SELECTORS.conversationContainer);
     if (!container) return messages;
 
     const turns = container.querySelectorAll(SELECTORS.turnContainer);
@@ -81,7 +153,7 @@ var ClaudeExtractor = (function () {
         index % 2 === 0;
 
       messages.push({
-        index: index,
+        index,
         role: isUser ? "user" : "assistant",
         renderedText: text.trim(),
         element: turn,

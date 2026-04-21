@@ -51,7 +51,12 @@ var GeminiExtractor = (function () {
 
   function extractAssistantText(element) {
     const contentEl = element.querySelector(SELECTORS.messageContent) || element;
-    return extractTextContent(contentEl).trim();
+    const raw = extractTextContent(contentEl).trim();
+    // Strip the "Gemini said " prefix that the UI prepends in some render paths.
+    // Without this, both captures of the same response have different text and
+    // both pass the duplicate check — causing double storage and a turn-counter
+    // collision on the second entry.
+    return raw.replace(/^Gemini said\s+/i, "").trim();
   }
 
   function extractAllMessages() {
@@ -169,12 +174,15 @@ var GeminiExtractor = (function () {
   function getThreadKey() {
     try {
       const parsed = new URL(window.location.href);
-      // FIX: Strip query string entirely. Gemini conversation identity is solely
-      // in the path (/app/THREAD_ID). Including parsed.search caused 15+ tracking
-      // params (gclid, gbraid, UTM etc.) to enter the threadKey, making it 483
-      // chars long and breaking session resume when the user navigates back via
-      // a different ad click (different gclid = different key = new session created
-      // instead of resuming the existing one).
+      // FIX: Return null for the Gemini homepage (/app or /app/) — there is no
+      // thread ID yet. Returning null tells content.js not to create a session,
+      // preventing an orphaned stub session from being created before the first
+      // message is sent and the URL changes to /app/{threadId}.
+      // Also strip query string: Gemini conversation identity is solely in the
+      // path (/app/THREAD_ID). Query params (gclid, UTM etc.) must not enter the
+      // thread key or session resume breaks across navigations.
+      const pathname = parsed.pathname.replace(/\/+$/, ""); // strip trailing slashes
+      if (pathname === "/app" || pathname === "") return null;
       return `${parsed.origin}${parsed.pathname}`;
     } catch (e) {
       return window.location.href;

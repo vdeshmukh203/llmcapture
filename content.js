@@ -231,18 +231,20 @@
       let messages = extractor.extractAllMessages();
       if (messages.length > knownMessageCount) {
         const newMessages = messages.slice(knownMessageCount);
-        // FIX #9 guard: if the first new message is an assistant reply but the
-        // session has equal promptCount and assistantCount (meaning we haven't
-        // yet stored the user turn for this exchange), the user message DOM
-        // element was probably filtered out due to empty text during extraction.
-        // Wait 2 s and re-extract so ChatGPT's React render has time to populate
-        // the text node before we process.
+        // FIX #9 guard: if the first new message is an assistant reply but we
+        // haven't yet stored the user turn for this exchange, the user message
+        // DOM element was probably filtered out due to empty text (ChatGPT's
+        // React renderer transiently clears text nodes during reconciliation).
+        // Wait 5 s (up from 2 s) and re-extract so the node is repopulated.
+        // Also fire when promptCount < assistantCount (the user message was
+        // already skipped in a prior cycle and the slot advanced) — the extra
+        // wait gives React time to repopulate for the retry in processMessages.
         if (
           newMessages.length > 0 &&
           newMessages[0].role === "assistant" &&
-          currentSession.promptCount === currentSession.assistantCount
+          currentSession.promptCount <= currentSession.assistantCount
         ) {
-          await sleep(2000);
+          await sleep(5000);
           messages = extractor.extractAllMessages();
         }
         await processMessages(messages.slice(knownMessageCount));
