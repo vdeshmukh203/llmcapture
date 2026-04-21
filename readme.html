@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Chat Capture – Forensic Logger v11.0.0 · Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#09090b;--bg1:#111114;--bg2:#18181c;--bg3:#222226;
+  --bd:#2a2a30;--bd2:#3a3a42;
+  --text:#e8e8ec;--text2:#9898a8;--text3:#5a5a6a;
+  --acc:#00c896;--acc2:#00a87c;--acc3:#004d38;
+  --blue:#4a9eff;--amber:#f0a830;--coral:#f06060;--purple:#a080f0;--red:#e05050;
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'IBM Plex Sans',sans-serif;
+  --sidebar:260px;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);font-size:14px;line-height:1.7;min-height:100vh;display:flex}
+
+/* Sidebar */
+nav#sidebar{
+  width:var(--sidebar);min-width:var(--sidebar);height:100vh;position:sticky;top:0;
+  background:var(--bg1);border-right:1px solid var(--bd);
+  display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0;
+}
+.nav-header{padding:2rem 1.5rem 1.5rem;border-bottom:1px solid var(--bd)}
+.nav-logo{font-family:var(--mono);font-size:11px;color:var(--acc);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.nav-title{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);line-height:1.3}
+.nav-sub{font-size:11px;color:var(--text3);margin-top:4px}
+.nav-links{padding:1rem 0;flex:1}
+.nav-group{padding:0.5rem 1.5rem 0.25rem;font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.12em;text-transform:uppercase}
+.nav-link{display:flex;align-items:center;gap:8px;padding:6px 1.5rem;font-size:12.5px;color:var(--text2);text-decoration:none;transition:all .12s;border-left:2px solid transparent;font-family:var(--mono)}
+.nav-link:hover{color:var(--text);background:var(--bg2);border-left-color:var(--bd2)}
+.nav-link.active{color:var(--acc);background:rgba(0,200,150,.06);border-left-color:var(--acc)}
+.nav-link .dot{width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:background .12s}
+.nav-link.active .dot{background:var(--acc)}
+.nav-footer{padding:1rem 1.5rem;border-top:1px solid var(--bd);font-size:10px;color:var(--text3);font-family:var(--mono)}
+
+/* Main */
+main{flex:1;min-width:0;max-width:860px;padding:3rem 3rem 5rem}
+section{margin-bottom:5rem}
+section:target{scroll-margin-top:2rem}
+
+h1{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--text);margin-bottom:0.5rem}
+h2{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text);margin-bottom:1.25rem;padding-bottom:0.6rem;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px}
+h2 .h2-num{font-size:11px;color:var(--acc);background:rgba(0,200,150,.12);padding:2px 7px;border-radius:3px;font-weight:500}
+h3{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--text);margin-bottom:0.6rem;margin-top:1.25rem}
+p{color:var(--text2);margin-bottom:0.75rem;font-size:13.5px}
+ul{color:var(--text2);font-size:13.5px;padding-left:1.25rem;margin-bottom:0.75rem}
+li{margin-bottom:4px}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* Hero */
+.hero{margin-bottom:3rem;padding:2rem;background:var(--bg1);border:1px solid var(--bd);border-radius:8px;border-left:3px solid var(--acc)}
+.hero-title{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--text);margin-bottom:4px}
+.hero-sub{font-size:13px;color:var(--text2);margin-bottom:1rem}
+.badge-row{display:flex;flex-wrap:wrap;gap:6px}
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:3px;font-weight:500}
+.badge-acc{background:rgba(0,200,150,.15);color:var(--acc);border:1px solid rgba(0,200,150,.3)}
+.badge-blue{background:rgba(74,158,255,.12);color:var(--blue);border:1px solid rgba(74,158,255,.25)}
+.badge-amber{background:rgba(240,168,48,.12);color:var(--amber);border:1px solid rgba(240,168,48,.25)}
+.badge-coral{background:rgba(240,96,96,.12);color:var(--coral);border:1px solid rgba(240,96,96,.25)}
+.badge-purple{background:rgba(160,128,240,.12);color:var(--purple);border:1px solid rgba(160,128,240,.25)}
+.badge-dim{background:var(--bg3);color:var(--text3);border:1px solid var(--bd)}
+
+/* Cards */
+.card{background:var(--bg1);border:1px solid var(--bd);border-radius:6px;padding:1.25rem 1.5rem;margin-bottom:12px}
+.card-acc{border-left:3px solid var(--acc)}
+.card-blue{border-left:3px solid var(--blue)}
+.card-amber{border-left:3px solid var(--amber)}
+.card-coral{border-left:3px solid var(--coral)}
+.card-purple{border-left:3px solid var(--purple)}
+.card-red{border-left:3px solid var(--red)}
+.card-dim{border-left:3px solid var(--text3)}
+
+/* Grid */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+/* Code */
+code{font-family:var(--mono);font-size:12px;background:var(--bg3);padding:1px 5px;border-radius:3px;color:var(--acc)}
+pre{font-family:var(--mono);font-size:12px;background:var(--bg2);border:1px solid var(--bd);border-radius:6px;padding:1.25rem;overflow-x:auto;line-height:1.8;color:#c8c8d8;margin:0.75rem 0}
+.kw{color:#a080f0}.str{color:#50c870}.num{color:#f0a830}.cmt{color:#505060}.fn{color:#4a9eff}.type{color:#f06060}
+
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin:0.75rem 0}
+thead tr{background:var(--bg3)}
+th{text-align:left;font-family:var(--mono);font-weight:500;font-size:11px;color:var(--text3);padding:8px 12px;border-bottom:1px solid var(--bd);letter-spacing:.04em;text-transform:uppercase}
+td{padding:8px 12px;border-bottom:1px solid var(--bd);color:var(--text2);vertical-align:top}
+td code{font-size:11px}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.018)}
+
+/* Pipeline steps */
+.step{display:flex;gap:1rem;margin-bottom:12px}
+.step-num{width:28px;height:28px;border-radius:50%;background:rgba(0,200,150,.12);border:1px solid rgba(0,200,150,.3);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--acc);flex-shrink:0;margin-top:2px}
+.step-body{flex:1}
+.step-title{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--text);margin-bottom:3px}
+.step-desc{font-size:13px;color:var(--text2)}
+
+/* State flow */
+.state-flow{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin:0.75rem 0}
+.state{font-family:var(--mono);font-size:11px;padding:4px 10px;border:1px solid var(--bd);border-radius:4px;color:var(--text2);background:var(--bg2)}
+.state.active{border-color:rgba(0,200,150,.4);color:var(--acc);background:rgba(0,200,150,.08)}
+.state-arrow{color:var(--text3);font-size:11px}
+
+/* Schema fields */
+.schema{border:1px solid var(--bd);border-radius:6px;overflow:hidden;margin:0.75rem 0}
+.schema-row{display:flex;gap:0;border-bottom:1px solid var(--bd);font-size:12px}
+.schema-row:last-child{border-bottom:none}
+.schema-row:hover{background:rgba(255,255,255,.015)}
+.sf-name{font-family:var(--mono);font-weight:500;color:var(--text);padding:7px 12px;min-width:180px;flex-shrink:0}
+.sf-type{font-family:var(--mono);font-size:11px;color:var(--blue);padding:7px 12px;min-width:100px;flex-shrink:0;border-left:1px solid var(--bd)}
+.sf-desc{color:var(--text2);padding:7px 12px;border-left:1px solid var(--bd)}
+.schema-head{background:var(--bg3);border-bottom:1px solid var(--bd)}
+
+/* Bug entries */
+.bug{padding:10px 14px;border-radius:4px;margin-bottom:8px;border-left:3px solid;font-size:12.5px}
+.bug-crit{background:rgba(224,80,80,.08);border-color:var(--red);color:var(--text2)}
+.bug-high{background:rgba(240,168,48,.08);border-color:var(--amber);color:var(--text2)}
+.bug-med{background:rgba(74,158,255,.08);border-color:var(--blue);color:var(--text2)}
+.bug-low{background:rgba(90,90,106,.12);border-color:var(--text3);color:var(--text2)}
+.bug strong{font-family:var(--mono);font-size:12px;color:var(--text);display:block;margin-bottom:3px}
+
+/* Msg blocks */
+.msg{background:var(--bg2);border:1px solid var(--bd);border-radius:5px;padding:10px 14px;margin-bottom:8px;font-size:12.5px}
+.msg-from{font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em}
+.msg code{background:rgba(0,200,150,.1);color:var(--acc)}
+
+/* Stat cards */
+.stat-card{text-align:center;background:var(--bg1);border:1px solid var(--bd);border-radius:6px;padding:1.5rem 1rem}
+.stat-num{font-family:var(--mono);font-size:36px;font-weight:600;color:var(--text);line-height:1}
+.stat-label{font-size:11px;color:var(--text3);margin-top:6px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em}
+
+/* Warning boxes */
+.warn-box{background:rgba(240,168,48,.06);border:1px solid rgba(240,168,48,.2);border-radius:6px;padding:1rem 1.25rem;margin:0.75rem 0;font-size:13px;color:var(--text2)}
+.warn-box strong{color:var(--amber);font-family:var(--mono);font-size:12px}
+
+/* Divider */
+hr{border:none;border-top:1px solid var(--bd);margin:1.5rem 0}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
+
+@media(max-width:900px){
+  body{flex-direction:column}
+  nav#sidebar{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap}
+  .nav-links{display:flex;flex-wrap:wrap;padding:0.5rem}
+  .nav-link{border-left:none;border-bottom:2px solid transparent;padding:5px 10px}
+  .nav-link.active{border-bottom-color:var(--acc)}
+  main{padding:1.5rem}
+}
+</style>
+</head>
+<body>
+
+<nav id="sidebar">
+  <div class="nav-header">
+    <div class="nav-logo">llmcapture · v11.0.0</div>
+    <div class="nav-title">AI Chat Capture<br>Forensic Logger</div>
+    <div class="nav-sub">Architecture Reference</div>
+  </div>
+  <div class="nav-links">
+    <div class="nav-group">Introduction</div>
+    <a class="nav-link active" href="#overview"><span class="dot"></span>Overview</a>
+    <a class="nav-link" href="#files"><span class="dot"></span>File inventory</a>
+    <div class="nav-group">Core</div>
+    <a class="nav-link" href="#pipeline"><span class="dot"></span>Data pipeline</a>
+    <a class="nav-link" href="#crypto"><span class="dot"></span>Crypto chain</a>
+    <a class="nav-link" href="#state"><span class="dot"></span>State machines</a>
+    <div class="nav-group">Components</div>
+    <a class="nav-link" href="#extractors"><span class="dot"></span>Extractors</a>
+    <a class="nav-link" href="#storage"><span class="dot"></span>Storage &amp; schema</a>
+    <a class="nav-link" href="#messaging"><span class="dot"></span>Message flows</a>
+    <a class="nav-link" href="#verifier"><span class="dot"></span>Chain verifier</a>
+    <div class="nav-group">Quality</div>
+    <a class="nav-link" href="#bugs"><span class="dot"></span>13-bug audit</a>
+    <a class="nav-link" href="#corpus"><span class="dot"></span>Session corpus</a>
+  </div>
+  <div class="nav-footer">post-audit · SHA-256 chain · MV3</div>
+</nav>
+
+<main>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-title">AI Chat Capture – Forensic Logger</div>
+  <div class="hero-sub">Cryptographically chained, tamper-evident session logging for AI chat platforms · Chromium Extension MV3 · v11.0.0 (post-13-bug-fix audit)</div>
+  <div class="badge-row">
+    <span class="badge badge-acc">SHA-256 chain</span>
+    <span class="badge badge-blue">ChatGPT</span>
+    <span class="badge badge-acc">Claude</span>
+    <span class="badge badge-amber">Gemini</span>
+    <span class="badge badge-dim">MV3 Service Worker</span>
+    <span class="badge badge-dim">File System Access API</span>
+    <span class="badge badge-coral">Court-grade forensics</span>
+  </div>
+</div>
+
+<!-- OVERVIEW -->
+<section id="overview">
+  <h2><span class="h2-num">01</span>Overview</h2>
+  <p>A Chromium browser extension that produces cryptographically chained, tamper-evident forensic logs of AI chat interactions across ChatGPT, Claude, and Gemini. Designed for scenarios requiring verifiable, court-admissible records of AI session content — including academic research, legal proceedings, and compliance audits.</p>
+
+  <div class="grid2">
+    <div class="card card-acc">
+      <h3>Design intent</h3>
+      <p>Produce session logs where any post-capture modification — insertion, deletion, reordering, or content alteration — is cryptographically detectable via SHA-256 hash chaining. Each entry's chain hash commits to all prior entries, the entry's own content, its position index, and its timestamp. No silent corruption is possible.</p>
+    </div>
+    <div class="card card-blue">
+      <h3>Threat model</h3>
+      <p>Adversary with access to the session JSON log files but <em>not</em> the extension runtime. Can modify JSON fields, delete entries, reorder records. Cannot replay live SHA-256 computation without access to the chain seed. Cross-session hash transplantation is defeated by the session-unique chain seed.</p>
+    </div>
+  </div>
+
+  <div class="card card-purple">
+    <h3>Platform scope</h3>
+    <div class="badge-row" style="margin-top:6px">
+      <span class="badge badge-blue">ChatGPT — chat.openai.com</span>
+      <span class="badge badge-acc">Claude — claude.ai</span>
+      <span class="badge badge-amber">Gemini — gemini.google.com</span>
+      <span class="badge badge-dim">Extensible via new extractor modules</span>
+    </div>
+  </div>
+
+  <div class="card card-dim">
+    <h3>Architecture summary</h3>
+    <p>Three-tier runtime: a MV3 service worker (<code>background.js</code>) holds authoritative chain state; a content script (<code>content.js</code>) injects platform-specific extractors and relays captured entries; an extension popup provides session control. Persistence via the File System Access API writes JSON session logs to a user-designated directory. An offline React verifier (<code>chain_verifier.tsx</code>) replays hash chains for integrity validation without requiring the extension.</p>
+  </div>
+</section>
+
+<!-- FILE INVENTORY -->
+<section id="files">
+  <h2><span class="h2-num">02</span>File inventory</h2>
+  <table>
+    <thead>
+      <tr><th>File</th><th>Layer</th><th>Role</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>manifest.json</code></td><td><span class="badge badge-dim">Config</span></td><td>Extension manifest v3 — permissions, content script registration, service worker declaration, host permissions for target platforms</td></tr>
+      <tr><td><code>background.js</code></td><td><span class="badge badge-acc">Core</span></td><td>MV3 service worker — authoritative chain state keeper, storage orchestrator, cross-tab coordinator, session lifecycle manager</td></tr>
+      <tr><td><code>content.js</code></td><td><span class="badge badge-acc">Core</span></td><td>Content script — platform detection, extractor injector, DOM-to-background bridge, port-based entry relay</td></tr>
+      <tr><td><code>popup.html / popup.js / popup.css</code></td><td><span class="badge badge-blue">UI</span></td><td>Extension popup — session start/pause/resume/stop controls, live status display, export trigger, entry counter</td></tr>
+      <tr><td><code>extractors/chatgpt.js</code></td><td><span class="badge badge-amber">Extractor</span></td><td>ChatGPT DOM observer — role-keyed message detection, streaming fence, content extraction, dedup</td></tr>
+      <tr><td><code>extractors/claude.js</code></td><td><span class="badge badge-amber">Extractor</span></td><td>Claude DOM observer — artifact block handling, thinking block capture, cursor-blink streaming detection</td></tr>
+      <tr><td><code>extractors/gemini.js</code></td><td><span class="badge badge-amber">Extractor</span></td><td>Gemini DOM observer — positional cursor (post-fix), scanLock mutex, 800ms debounce for post-stream DOM reformat</td></tr>
+      <tr><td><code>lib/crypto.js</code></td><td><span class="badge badge-purple">Library</span></td><td>SHA-256 via SubtleCrypto — content hash and chain hash computation. Shared between writer and verifier (post-fix)</td></tr>
+      <tr><td><code>lib/storage.js</code></td><td><span class="badge badge-purple">Library</span></td><td>Storage abstraction — chrome.storage.local for state, File System Access API for session log writes, atomic write via temp-rename</td></tr>
+      <tr><td><code>lib/input-capture.js</code></td><td><span class="badge badge-purple">Library</span></td><td>Pre-submission user prompt capture — keydown listener + send-button pointerdown intercept; later-of-two wins</td></tr>
+      <tr><td><code>chain_verifier.tsx</code></td><td><span class="badge badge-coral">Verifier</span></td><td>Offline React integrity checker — replays full chain, reports PASS / WARN / FAIL per entry and per session</td></tr>
+      <tr><td><code>smart-sync.ps1</code></td><td><span class="badge badge-dim">Utility</span></td><td>PowerShell sync script — pushes session_logs/ directory to target path; cross-platform via Join-Path (post-fix)</td></tr>
+      <tr><td><code>session_logs/</code></td><td><span class="badge badge-dim">Data</span></td><td>15 captured sessions — ai-capture-chatgpt-*.json (×12), ai-capture-claude-*.json (×3)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- PIPELINE -->
+<section id="pipeline">
+  <h2><span class="h2-num">03</span>Data pipeline</h2>
+  <p>Nine distinct stages from DOM mutation event to persisted, cryptographically chained log entry.</p>
+
+  <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">DOM mutation event</div><div class="step-desc">MutationObserver in the site-specific extractor fires on new assistant message node insertion. Target selector is platform-specific — e.g. <code>[data-message-author-role="assistant"]</code> for ChatGPT. Streaming state detected via presence of a streaming cursor class or loading spinner attribute.</div></div></div>
+
+  <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Streaming fence</div><div class="step-desc">Extractor checks for streaming-in-progress marker. If streaming is active, schedules a re-check via debounced timeout — avoids capturing partial content mid-stream. Commit only proceeds when streaming marker is absent and content has been stable for the platform-tuned debounce window.</div></div></div>
+
+  <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Content extraction</div><div class="step-desc">Extracts raw text via <code>innerText</code> on the settled content node. Strips extractor-specific prefix contamination (bug #4 fix). For Gemini: uses integer positional cursor rather than content-hash cursor to avoid phantom recommits after post-streaming DOM reformatting (critical bug #1 fix).</div></div></div>
+
+  <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Deduplication check</div><div class="step-desc">Compares extracted content against the last committed entry's content hash. If matched, DUPLICATE status is assigned — but the entry is still committed and chained (failure-as-data principle). Nothing is silently dropped.</div></div></div>
+
+  <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Content hash computation</div><div class="step-desc"><code>lib/crypto.js</code> computes <code>SHA-256(UTF-8(content))</code> via <code>SubtleCrypto.digest()</code>, returning a lowercase hex string. This is the per-entry content fingerprint — independent of position in chain.</div></div></div>
+
+  <div class="step"><div class="step-num">6</div><div class="step-body"><div class="step-title">Chain hash computation</div><div class="step-desc"><code>chain_hash = SHA-256(prev_chain_hash + content_hash + entry_index + timestamp_iso)</code>. Genesis entry (Run 1, index 0) uses <code>null</code> as prev and records the session <code>chain_seed</code>. Each subsequent entry commits to the full accumulated prior state.</div></div></div>
+
+  <div class="step"><div class="step-num">7</div><div class="step-body"><div class="step-title">Entry assembly</div><div class="step-desc">Complete entry object constructed: <code>{entry_index, session_id, run_id, role, content, content_hash, chain_hash, prev_chain_hash, timestamp_iso, status, platform, metadata}</code>. Status is one of <code>OK | INVALID | ERROR | DUPLICATE | EMPTY_RESPONSE</code>.</div></div></div>
+
+  <div class="step"><div class="step-num">8</div><div class="step-body"><div class="step-title">Background relay</div><div class="step-desc"><code>content.js</code> sends entry to <code>background.js</code> via persistent port (<code>chrome.runtime.connect</code>). Background validates session state is CAPTURING before accepting. Holds authoritative chain state across all tabs — prevents race conditions on multi-tab sessions.</div></div></div>
+
+  <div class="step"><div class="step-num">9</div><div class="step-body"><div class="step-title">Storage write</div><div class="step-desc"><code>lib/storage.js</code> appends entry to in-memory session array. On session close, periodic flush (60s), or PAUSE, writes full session JSON to File System Access API handle. Atomic write: serialize to temp file, then rename to final path — prevents partial-write corruption.</div></div></div>
+</section>
+
+<!-- CRYPTO -->
+<section id="crypto">
+  <h2><span class="h2-num">04</span>Cryptographic chain architecture</h2>
+
+  <div class="grid2">
+    <div class="card card-acc">
+      <h3>Hash primitive</h3>
+      <p>All hashes: <code>SubtleCrypto.digest('SHA-256', data)</code> → ArrayBuffer → lowercase hex string. Key-less — no HMAC. Chain integrity derives from sequential commitment, not a shared secret. Verifiable by any party with access to the session JSON and a browser.</p>
+    </div>
+    <div class="card card-blue">
+      <h3>Two-hash design</h3>
+      <p><strong style="color:var(--text)">content_hash</strong> — SHA-256 of entry content. Detects content tampering independently of chain position. Can be checked entry-by-entry without replaying the full chain.</p>
+      <p style="margin-top:6px"><strong style="color:var(--text)">chain_hash</strong> — commits to position, timestamp, and all prior state. Detects insertion, deletion, and reordering even when content_hash values are preserved.</p>
+    </div>
+  </div>
+
+  <div class="card card-purple">
+    <h3>Genesis entry — Run 1 anchoring</h3>
+<pre><span class="cmt">// Entry index 0, run_id = "run_1" — establishes chain root</span>
+{
+  entry_index:     <span class="num">0</span>,
+  run_id:          <span class="str">"run_1"</span>,
+  prev_chain_hash: <span class="kw">null</span>,              <span class="cmt">// no predecessor</span>
+  chain_seed:      <span class="str">"&lt;random 32-byte hex&gt;"</span>,  <span class="cmt">// session-unique entropy</span>
+  chain_hash:      <span class="fn">SHA256</span>(<span class="str">"null"</span> + content_hash + <span class="str">"0"</span> + timestamp_iso),
+  status:          <span class="str">"OK"</span>
+}</pre>
+    <p>Chain seed generated via <code>crypto.getRandomValues(new Uint8Array(32))</code>. Binds the chain to a specific session instance — prevents cross-session hash transplantation attacks where a valid chain from session A is grafted into session B.</p>
+  </div>
+
+  <div class="card card-amber">
+    <h3>Chain propagation formula</h3>
+<pre><span class="cmt">// Each entry n (n > 0)</span>
+chain_hash[n] = <span class="fn">SHA256</span>(
+  chain_hash[n-1]     <span class="cmt">// binds to all prior state</span>
+  + content_hash[n]   <span class="cmt">// binds to this entry's content</span>
+  + <span class="fn">String</span>(n)          <span class="cmt">// binds to absolute position</span>
+  + timestamp_iso[n]  <span class="cmt">// binds to capture time</span>
+)</pre>
+  </div>
+
+  <div class="grid2">
+    <div class="card card-acc">
+      <h3>Multi-run continuity</h3>
+      <p>On PAUSE + RESUME, a new <code>run_id</code> is issued (<code>run_2</code>, <code>run_3</code>…). The chain continues: the first entry of run_2 uses the final <code>chain_hash</code> of run_1 as its <code>prev_chain_hash</code>. Cross-run integrity is fully preserved. A session abort (navigation, crash) is logged as an ERROR entry preserving index continuity.</p>
+    </div>
+    <div class="card card-blue">
+      <h3>Status taxonomy</h3>
+      <table>
+        <tr><th>Status</th><th>Meaning</th><th>Chain effect</th></tr>
+        <tr><td><code>OK</code></td><td>Normal, verified</td><td>Full inclusion</td></tr>
+        <tr><td><code>INVALID</code></td><td>Hash mismatch at write</td><td>Recorded as evidence</td></tr>
+        <tr><td><code>ERROR</code></td><td>Runtime failure</td><td>Placeholder preserves index</td></tr>
+        <tr><td><code>DUPLICATE</code></td><td>Content hash repeated</td><td>Recorded, flagged</td></tr>
+        <tr><td><code>EMPTY_RESPONSE</code></td><td>Zero-length content</td><td>Null content_hash, chain continues</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- STATE MACHINES -->
+<section id="state">
+  <h2><span class="h2-num">05</span>State machines</h2>
+
+  <h3>Session state machine (background.js)</h3>
+  <div class="state-flow">
+    <span class="state">IDLE</span>
+    <span class="state-arrow">─ START ─▶</span>
+    <span class="state active">CAPTURING</span>
+    <span class="state-arrow">─ PAUSE ─▶</span>
+    <span class="state">PAUSED</span>
+    <span class="state-arrow">─ RESUME ─▶</span>
+    <span class="state active">CAPTURING</span>
+    <span class="state-arrow">─ STOP ─▶</span>
+    <span class="state">CLOSING</span>
+    <span class="state-arrow">─ flush done ─▶</span>
+    <span class="state">IDLE</span>
+  </div>
+  <table>
+    <thead><tr><th>Transition</th><th>Trigger</th><th>Side effects</th></tr></thead>
+    <tbody>
+      <tr><td><code>IDLE → CAPTURING</code></td><td>popup: START</td><td>Generate session_id (UUID v4), run_id="run_1", chain_seed. Create genesis entry. Initialize in-memory session buffer. Open persistent port with content.</td></tr>
+      <tr><td><code>CAPTURING → PAUSED</code></td><td>popup: PAUSE</td><td>Flush in-memory buffer to File System storage. Send OBSERVER_SUSPEND to content. Transition before flush completes — UI reflects PAUSED immediately.</td></tr>
+      <tr><td><code>PAUSED → CAPTURING</code></td><td>popup: RESUME</td><td>Increment run counter. New run_id anchored to last chain_hash. Send OBSERVER_RESUME to content.</td></tr>
+      <tr><td><code>CAPTURING → CLOSING</code></td><td>popup: STOP or tab close</td><td>Write SESSION_CLOSED sentinel entry. Final flush of full session array to JSON file. Clear all in-memory state and chrome.storage.session entries.</td></tr>
+      <tr><td><code>Any → ERROR</code></td><td>Runtime exception</td><td>Write ERROR entry preserving entry_index continuity. Attempt recovery to PAUSED. Log error reason in entry metadata.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Extractor streaming state (per-platform)</h3>
+  <div class="state-flow">
+    <span class="state">IDLE</span>
+    <span class="state-arrow">─ observer fires ─▶</span>
+    <span class="state">DETECTING</span>
+    <span class="state-arrow">─ streaming marker ─▶</span>
+    <span class="state">STREAMING</span>
+    <span class="state-arrow">─ marker gone ─▶</span>
+    <span class="state active">SETTLING</span>
+    <span class="state-arrow">─ debounce expires ─▶</span>
+    <span class="state">COMMITTING</span>
+    <span class="state-arrow">─ entry dispatched ─▶</span>
+    <span class="state">IDLE</span>
+  </div>
+  <p>Platform-tuned debounce windows: ChatGPT 300 ms · Claude 500 ms · Gemini 800 ms (extended to cover full post-streaming DOM reformat cycle).</p>
+
+  <h3>scanLock mutex — gemini.js (critical bug #1 fix)</h3>
+  <div class="card card-coral">
+<pre><span class="kw">let</span> scanLock = <span class="kw">false</span>;
+<span class="kw">let</span> scanPending = <span class="kw">false</span>;
+
+<span class="kw">async function</span> <span class="fn">scanWithLock</span>() {
+  <span class="kw">if</span> (scanLock) { scanPending = <span class="kw">true</span>; <span class="kw">return</span>; }  <span class="cmt">// defer, don't stack</span>
+  scanLock = <span class="kw">true</span>;
+  <span class="kw">try</span> {
+    <span class="kw">await</span> <span class="fn">doScan</span>();
+  } <span class="kw">finally</span> {
+    scanLock = <span class="kw">false</span>;
+    <span class="kw">if</span> (scanPending) {           <span class="cmt">// drain exactly one deferred scan</span>
+      scanPending = <span class="kw">false</span>;
+      <span class="fn">scanWithLock</span>();
+    }
+  }
+}</pre>
+    <p>Prevents concurrent scans triggered by Gemini's post-streaming DOM reformatting from racing, producing phantom recommits, and inflating the entry count with DUPLICATE records.</p>
+  </div>
+</section>
+
+<!-- EXTRACTORS -->
+<section id="extractors">
+  <h2><span class="h2-num">06</span>Platform extractors</h2>
+
+  <div class="card card-blue">
+    <h3>extractors/chatgpt.js</h3>
+    <div class="badge-row" style="margin-bottom:8px">
+      <span class="badge badge-blue">chat.openai.com</span>
+      <span class="badge badge-dim">React SPA</span>
+      <span class="badge badge-acc">Stable selectors</span>
+    </div>
+    <table>
+      <tr><th>Concern</th><th>Implementation</th></tr>
+      <tr><td>Root target</td><td><code>document.querySelector('main')</code> — stable across SPA navigation</td></tr>
+      <tr><td>Message detection</td><td><code>[data-message-author-role]</code> attribute — values <code>user</code> | <code>assistant</code></td></tr>
+      <tr><td>Streaming detection</td><td>Presence of <code>.result-streaming</code> class on message div</td></tr>
+      <tr><td>Content extraction</td><td><code>el.querySelector('.markdown').innerText</code> — raw content preserved verbatim</td></tr>
+      <tr><td>Positional cursor</td><td>Length of committed entries array — ChatGPT DOM order reliably matches conversation order</td></tr>
+      <tr><td>Code block prefix</td><td>Language identifier token stripped from code block <code>innerText</code> (bug #4 fix)</td></tr>
+      <tr><td>Debounce window</td><td>300 ms post-streaming-end</td></tr>
+    </table>
+  </div>
+
+  <div class="card card-acc">
+    <h3>extractors/claude.js</h3>
+    <div class="badge-row" style="margin-bottom:8px">
+      <span class="badge badge-acc">claude.ai</span>
+      <span class="badge badge-dim">React SPA</span>
+      <span class="badge badge-amber">Artifact &amp; thinking handling</span>
+    </div>
+    <table>
+      <tr><th>Concern</th><th>Implementation</th></tr>
+      <tr><td>Root target</td><td>Conversation scroll container — re-attached on SPA route change</td></tr>
+      <tr><td>Streaming detection</td><td>Cursor blink element presence within message container</td></tr>
+      <tr><td>Content extraction</td><td><code>innerText</code> on prose container; artifact blocks excluded</td></tr>
+      <tr><td>Artifact handling</td><td>Artifact panel content excluded from chain entry; flagged in <code>metadata.has_artifact = true</code></td></tr>
+      <tr><td>Thinking blocks</td><td>Extended thinking content captured with <code>[THINKING]</code> prefix when visible in DOM</td></tr>
+      <tr><td>Debounce window</td><td>500 ms — Claude re-renders after citation resolution</td></tr>
+    </table>
+  </div>
+
+  <div class="card card-amber">
+    <h3>extractors/gemini.js — post-audit architecture</h3>
+    <div class="badge-row" style="margin-bottom:8px">
+      <span class="badge badge-amber">gemini.google.com</span>
+      <span class="badge badge-coral">Highest complexity</span>
+      <span class="badge badge-purple">Post-stream DOM reformat</span>
+    </div>
+    <table>
+      <tr><th>Concern</th><th>Post-fix implementation</th></tr>
+      <tr><td>Root target</td><td>Response container — Gemini replaces <em>entire</em> response subtree post-stream</td></tr>
+      <tr><td>Streaming detection</td><td>Loading spinner presence + <code>message-complete</code> attribute polling</td></tr>
+      <tr><td>Positional cursor</td><td>Integer index into DOM NodeList — <strong>not</strong> content hash. Critical fix: hash-based cursor was invalidated by DOM replacement, triggering full array rescans and phantom recommits.</td></tr>
+      <tr><td>Concurrency guard</td><td>scanLock mutex + deferred-scan flag (see state machines section)</td></tr>
+      <tr><td>Generic fallback</td><td>Overbroad <code>div p</code> fallback selector removed — was capturing UI chrome (sidebar items, button labels) as assistant messages</td></tr>
+      <tr><td>Empty response</td><td>Zero-length content after trim → <code>EMPTY_RESPONSE</code> status entry committed (previously silently dropped, creating index gaps)</td></tr>
+      <tr><td>Debounce window</td><td>800 ms — accommodates full DOM reformat cycle</td></tr>
+    </table>
+  </div>
+
+  <div class="card card-dim">
+    <h3>lib/input-capture.js — user prompt capture</h3>
+    <p>Intercepts user input before submission via two parallel hooks: (1) <code>keydown</code> listener on the platform textarea captures content on Enter / submit keypress. (2) <code>pointerdown</code> listener on the send button provides a second capture point. The later of the two timestamps wins — handles edge cases where user edits content after the keydown event fires.</p>
+    <p>Captured user prompts flow through the identical hash chain pipeline as assistant messages, with <code>role: "user"</code>.</p>
+  </div>
+</section>
+
+<!-- STORAGE -->
+<section id="storage">
+  <h2><span class="h2-num">07</span>Storage layer &amp; session log schema</h2>
+
+  <div class="grid2">
+    <div class="card card-acc">
+      <h3>Three-tier storage</h3>
+      <p><strong style="color:var(--text)">In-memory (runtime):</strong> <code>background.js</code> service worker holds live session array. Survives tab reload via <code>chrome.storage.session</code> (ephemeral). Lost on browser close — periodic flushes prevent data loss.</p>
+      <p><strong style="color:var(--text)">chrome.storage.local:</strong> Lightweight state — current <code>session_id</code>, last <code>chain_hash</code>, <code>run_id</code>. Not used for full log storage (5 MB limit insufficient for long sessions).</p>
+      <p><strong style="color:var(--text)">File System Access API:</strong> Primary log store. User grants directory access once (persisted via StorageFoundation). Writes <code>session_logs/ai-capture-{platform}-{timestamp}.json</code>.</p>
+    </div>
+    <div class="card card-blue">
+      <h3>Write strategy</h3>
+      <p>Each entry is appended to the in-memory array immediately upon commit. Flush triggers: (a) periodic — every 60 seconds, (b) on PAUSE, (c) full write on STOP. Atomic write: serialize full session to a temp file, then rename to the final path. Prevents partial-write corruption on crash or power loss.</p>
+      <p style="margin-top:8px">File naming convention: <code>ai-capture-chatgpt-2024-11-15T142301.json</code>. Timestamp is session start time in local ISO format. Platform slug: <code>chatgpt</code> | <code>claude</code> | <code>gemini</code>.</p>
+    </div>
+  </div>
+
+  <h3>Session-level JSON schema</h3>
+  <div class="schema">
+    <div class="schema-row schema-head"><span class="sf-name">Field</span><span class="sf-type">Type</span><span class="sf-desc">Description</span></div>
+    <div class="schema-row"><span class="sf-name">session_id</span><span class="sf-type">string</span><span class="sf-desc">UUID v4 — globally unique per recording session</span></div>
+    <div class="schema-row"><span class="sf-name">platform</span><span class="sf-type">string</span><span class="sf-desc">"chatgpt" | "claude" | "gemini"</span></div>
+    <div class="schema-row"><span class="sf-name">extension_version</span><span class="sf-type">string</span><span class="sf-desc">"11.0.0" — from manifest.json at capture time; version-pins the log format</span></div>
+    <div class="schema-row"><span class="sf-name">session_start</span><span class="sf-type">ISO 8601</span><span class="sf-desc">Timestamp of first actual message capture (not permission grant time)</span></div>
+    <div class="schema-row"><span class="sf-name">session_end</span><span class="sf-type">ISO 8601 | null</span><span class="sf-desc">Timestamp of SESSION_CLOSED sentinel; null if session was aborted</span></div>
+    <div class="schema-row"><span class="sf-name">chain_seed</span><span class="sf-type">string</span><span class="sf-desc">32-byte hex — session-unique entropy; anchors Run 1 genesis hash; prevents cross-session transplantation</span></div>
+    <div class="schema-row"><span class="sf-name">total_entries</span><span class="sf-type">integer</span><span class="sf-desc">Count of entries[] including ERROR / DUPLICATE / EMPTY_RESPONSE entries</span></div>
+    <div class="schema-row"><span class="sf-name">runs</span><span class="sf-type">integer</span><span class="sf-desc">Number of run_ids present (1 = uninterrupted; &gt;1 = paused and resumed)</span></div>
+    <div class="schema-row"><span class="sf-name">entries[]</span><span class="sf-type">Entry[]</span><span class="sf-desc">Ordered array of chain entries — see entry schema below</span></div>
+  </div>
+
+  <h3>Entry schema</h3>
+  <div class="schema">
+    <div class="schema-row schema-head"><span class="sf-name">Field</span><span class="sf-type">Type</span><span class="sf-desc">Description</span></div>
+    <div class="schema-row"><span class="sf-name">entry_index</span><span class="sf-type">integer</span><span class="sf-desc">0-based, monotonically increasing, never reused — gaps indicate lost entries</span></div>
+    <div class="schema-row"><span class="sf-name">run_id</span><span class="sf-type">string</span><span class="sf-desc">"run_1" | "run_2" … — identifies which capture continuity segment this entry belongs to</span></div>
+    <div class="schema-row"><span class="sf-name">role</span><span class="sf-type">string</span><span class="sf-desc">"user" | "assistant" | "system"</span></div>
+    <div class="schema-row"><span class="sf-name">content</span><span class="sf-type">string</span><span class="sf-desc">Full extracted text — verbatim, no truncation</span></div>
+    <div class="schema-row"><span class="sf-name">content_hash</span><span class="sf-type">string | null</span><span class="sf-desc">SHA-256(UTF-8(content)) as lowercase hex; null only for EMPTY_RESPONSE status entries</span></div>
+    <div class="schema-row"><span class="sf-name">prev_chain_hash</span><span class="sf-type">string | null</span><span class="sf-desc">chain_hash of entry[n-1]; null for genesis entry only</span></div>
+    <div class="schema-row"><span class="sf-name">chain_hash</span><span class="sf-type">string</span><span class="sf-desc">SHA-256(prev_chain_hash + content_hash + entry_index + timestamp_iso) — chain commitment</span></div>
+    <div class="schema-row"><span class="sf-name">timestamp_iso</span><span class="sf-type">ISO 8601</span><span class="sf-desc">Capture time (local timezone); committed into chain_hash — cannot be altered without detection</span></div>
+    <div class="schema-row"><span class="sf-name">status</span><span class="sf-type">string</span><span class="sf-desc">OK | INVALID | ERROR | DUPLICATE | EMPTY_RESPONSE</span></div>
+    <div class="schema-row"><span class="sf-name">metadata</span><span class="sf-type">object</span><span class="sf-desc">{has_artifact, has_thinking, error_reason, duplicate_of_index} — platform-specific flags</span></div>
+  </div>
+</section>
+
+<!-- MESSAGING -->
+<section id="messaging">
+  <h2><span class="h2-num">08</span>Chrome runtime message flows</h2>
+  <p>All inter-component communication via <code>chrome.runtime.sendMessage</code> (one-way) and <code>chrome.tabs.sendMessage</code> (background→content). A persistent port (<code>chrome.runtime.connect</code>) is used for high-frequency entry relay to avoid per-message connection overhead.</p>
+
+  <h3>Popup → Background</h3>
+  <div class="msg"><div class="msg-from">popup.js → background.js</div><code>SESSION_START</code> <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">{}</span><br><span style="font-size:12px;color:var(--text2)">Triggers genesis entry creation, state transition IDLE → CAPTURING. Generates session_id, chain_seed.</span></div>
+  <div class="msg"><div class="msg-from">popup.js → background.js</div><code>SESSION_PAUSE</code> <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">{}</span><br><span style="font-size:12px;color:var(--text2)">Flushes buffer, transitions CAPTURING → PAUSED, sends OBSERVER_SUSPEND to content script.</span></div>
+  <div class="msg"><div class="msg-from">popup.js → background.js</div><code>SESSION_RESUME</code> <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">{}</span><br><span style="font-size:12px;color:var(--text2)">Increments run_id, transitions PAUSED → CAPTURING, sends OBSERVER_RESUME to content script.</span></div>
+  <div class="msg"><div class="msg-from">popup.js → background.js</div><code>SESSION_STOP</code> <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">{}</span><br><span style="font-size:12px;color:var(--text2)">Writes SESSION_CLOSED sentinel entry, final flush, transitions to IDLE, clears all state.</span></div>
+  <div class="msg"><div class="msg-from">popup.js → background.js</div><code>GET_STATUS</code> → <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">{state, session_id, entry_count, last_chain_hash, platform}</span><br><span style="font-size:12px;color:var(--text2)">Status query — popup polls this to update display. Read from chrome.storage.session, not in-memory variable.</span></div>
+  <div class="msg"><div class="msg-from">popup.js → background.js</div><code>EXPORT_SESSION</code> <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">{session_id}</span><br><span style="font-size:12px;color:var(--text2)">Triggers re-serialization and atomic file write of the specified session.</span></div>
+
+  <h3 style="margin-top:1.5rem">Content → Background (high-frequency via port)</h3>
+  <div class="msg"><div class="msg-from">content.js → background.js (port)</div><code>CAPTURE_ENTRY</code> <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">{entry: EntryObject}</span><br><span style="font-size:12px;color:var(--text2)">Primary pipeline message. Background validates state=CAPTURING, appends to chain, flushes on threshold.</span></div>
+  <div class="msg"><div class="msg-from">content.js → background.js</div><code>EXTRACTOR_READY</code> <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">{platform, url}</span><br><span style="font-size:12px;color:var(--text2)">Sent on injection. Background responds with current state to allow mid-session recovery after tab reload.</span></div>
+  <div class="msg"><div class="msg-from">content.js → background.js</div><code>EXTRACTOR_ERROR</code> <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">{error, platform, context}</span><br><span style="font-size:12px;color:var(--text2)">Runtime extraction failure. Background creates ERROR entry preserving entry_index continuity.</span></div>
+  <div class="msg"><div class="msg-from">content.js → background.js</div><code>URL_CHANGE</code> <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">{newUrl, oldUrl}</span><br><span style="font-size:12px;color:var(--text2)">SPA navigation detected. Background decides whether to continue session or close and create a new one.</span></div>
+
+  <h3 style="margin-top:1.5rem">Background → Content</h3>
+  <div class="msg"><div class="msg-from">background.js → content.js</div><code>OBSERVER_SUSPEND</code><br><span style="font-size:12px;color:var(--text2)">Suspend MutationObserver. Content ACKs. Used during PAUSE transition.</span></div>
+  <div class="msg"><div class="msg-from">background.js → content.js</div><code>OBSERVER_RESUME</code><br><span style="font-size:12px;color:var(--text2)">Resume MutationObserver. Used during RESUME transition. Content re-scans DOM for any messages emitted during pause.</span></div>
+  <div class="msg"><div class="msg-from">background.js → content.js</div><code>STATE_SYNC</code> <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">{state, run_id, last_chain_hash}</span><br><span style="font-size:12px;color:var(--text2)">Pushes authoritative state after crash recovery or service worker restart.</span></div>
+
+  <div class="card card-purple" style="margin-top:1rem">
+    <h3>Persistent port — entry relay</h3>
+    <p>For sessions with high entry frequency, <code>content.js</code> opens a <code>chrome.runtime.connect({name:'entry-relay'})</code> port at EXTRACTOR_READY. All CAPTURE_ENTRY messages flow through this port. Port disconnect (tab close, navigation crash) is the primary mechanism for background to detect session termination — triggers flush + SESSION_CLOSED sentinel. Eliminates per-message connection overhead and makes crash detection reliable.</p>
+  </div>
+</section>
+
+<!-- VERIFIER -->
+<section id="verifier">
+  <h2><span class="h2-num">09</span>Chain verifier</h2>
+
+  <div class="card card-acc">
+    <h3>Design &amp; portability</h3>
+    <p><code>chain_verifier.tsx</code> compiles to a static React bundle. No backend. Accepts session JSON via file-input drag-drop. Runs entirely in-browser via SubtleCrypto. The verifier bundle + session JSON can be sent to opposing counsel or a tribunal expert who can independently verify chain integrity without installing the extension — a critical property for legal admissibility.</p>
+  </div>
+
+  <div class="card card-blue">
+    <h3>Verification algorithm</h3>
+<pre><span class="kw">async function</span> <span class="fn">verifySession</span>(session: <span class="type">Session</span>): <span class="type">Promise</span>&lt;<span class="type">VerifyResult[]</span>&gt; {
+  <span class="kw">let</span> prevHash: <span class="type">string</span> | <span class="kw">null</span> = <span class="kw">null</span>;
+  <span class="kw">const</span> results: <span class="type">VerifyResult[]</span> = [];
+
+  <span class="kw">for</span> (<span class="kw">const</span> entry <span class="kw">of</span> session.entries) {
+    <span class="cmt">// 1. Verify content hash (shared utility — same as writer)</span>
+    <span class="kw">const</span> computedContent = entry.status === <span class="str">"EMPTY_RESPONSE"</span>
+      ? <span class="kw">null</span>
+      : <span class="kw">await</span> <span class="fn">sha256</span>(entry.content);
+    <span class="kw">const</span> contentOk = computedContent === entry.content_hash;
+
+    <span class="cmt">// 2. Verify chain hash (same computeChainHash() as writer — critical fix)</span>
+    <span class="kw">const</span> computedChain = <span class="kw">await</span> <span class="fn">computeChainHash</span>(
+      prevHash, entry.content_hash, entry.entry_index, entry.timestamp_iso
+    );
+    <span class="kw">const</span> chainOk = computedChain === entry.chain_hash;
+
+    results.push({
+      entry_index: entry.entry_index,
+      contentOk, chainOk,
+      verdict: contentOk && chainOk ? <span class="str">"PASS"</span> : <span class="str">"FAIL"</span>
+    });
+    prevHash = entry.chain_hash;
+  }
+  <span class="kw">return</span> results;
+}</pre>
+  </div>
+
+  <div class="grid2">
+    <div class="card card-amber">
+      <h3>Session verdict taxonomy</h3>
+      <table>
+        <tr><th>Verdict</th><th>Condition</th></tr>
+        <tr><td><code style="color:#50c870">PASS</code></td><td>All entries: content_hash ✓ and chain_hash ✓</td></tr>
+        <tr><td><code style="color:#f0a830">WARN</code></td><td>PASS + DUPLICATE or EMPTY_RESPONSE entries present</td></tr>
+        <tr><td><code style="color:#f0a830">WARN</code></td><td>PASS + SESSION_CLOSED sentinel absent (aborted session)</td></tr>
+        <tr><td><code style="color:#f06060">FAIL</code></td><td>Any entry: content_hash ✗ or chain_hash ✗</td></tr>
+        <tr><td><code style="color:#f06060">FAIL</code></td><td>entry_index sequence gap detected</td></tr>
+      </table>
+    </div>
+    <div class="card card-dim">
+      <h3>Report output fields</h3>
+      <p><strong>Per-entry:</strong> index, role, content_preview (80 chars), content_hash_match, chain_hash_match, entry status, entry verdict.</p>
+      <p style="margin-top:6px"><strong>Session-level:</strong> overall_verdict, entries_verified, failures[], warnings[], session_id, platform, extension_version, verification_timestamp.</p>
+    </div>
+  </div>
+</section>
+
+<!-- BUGS -->
+<section id="bugs">
+  <h2><span class="h2-num">10</span>13-bug audit (v10 → v11.0.0)</h2>
+  <p>Severity: <strong style="color:var(--red)">Critical</strong> = integrity failure / false tamper-clean signal · <strong style="color:var(--amber)">High</strong> = data loss or chain break · <strong style="color:var(--blue)">Medium</strong> = functional defect · <strong style="color:var(--text3)">Low</strong> = edge case</p>
+
+  <h3 style="color:var(--red)">Critical — integrity failures (3)</h3>
+  <div class="bug bug-crit"><strong>#1 Gemini tail_cursor_signature hash cursor</strong>Post-streaming DOM reformatting invalidated stored content hashes used as positional cursors → full array rescan on each mutation → phantom recommit of prior entries → inflated entry count and chain hash corruption. Fix: switch to integer positional index cursor; add scanLock mutex; add debounced scanning with 800 ms window.</div>
+  <div class="bug bug-crit"><strong>#2 Verifier / writer hash path divergence</strong>chain_verifier.tsx used a different string concatenation order than the writer (writer: prev+content+index+ts; verifier: prev+ts+content+index) → verifier reported PASS on tampered logs — a false tamper-clean signal. Fix: shared computeChainHash() utility function imported by both writer and verifier.</div>
+  <div class="bug bug-crit"><strong>#3 False PASS on truncated sessions</strong>SESSION_CLOSED sentinel absent (crash/abort) caused verifier to exit chain loop early, reporting PASS without validating tail entries. Fix: verifier now iterates all entries[] regardless of sentinel presence; emits WARN when sentinel absent.</div>
+
+  <h3 style="color:var(--amber);margin-top:1rem">High — data loss / chain break (4)</h3>
+  <div class="bug bug-high"><strong>#4 Extractor prefix contamination</strong>Language identifier token from code blocks ("javascript const x = 1") prepended to extracted content → content_hash committed against contaminated string → hash diverges from actual response content. Fix: strip leading language identifier token from code block innerText before hashing.</div>
+  <div class="bug bug-high"><strong>#5 Overbroad Gemini fallback selector</strong>Generic <code>div p</code> fallback selector captured sidebar UI chrome (navigation items, button labels) as assistant message content. Fix: selector scoped strictly to response container; generic fallback removed entirely.</div>
+  <div class="bug bug-high"><strong>#6 Buffer not flushed on PAUSE</strong>In-memory session buffer not flushed when transitioning CAPTURING → PAUSED → entries lost if session not subsequently resumed. Fix: explicit flush call added in SESSION_PAUSE handler before observer suspension.</div>
+  <div class="bug bug-high"><strong>#7 EMPTY_RESPONSE silently dropped</strong>Zero-length content after trim caused early return before chain commit → gap in entry_index sequence → chain verification FAIL on a legitimate session. Fix: EMPTY_RESPONSE status entry committed with null content_hash; chain_hash still computed and chain continuity preserved.</div>
+
+  <h3 style="color:var(--blue);margin-top:1rem">Medium — functional defects (4)</h3>
+  <div class="bug bug-med"><strong>#8 run_id not incremented on RESUME</strong>All resumed entries written with run_id="run_1" → loss of pause/resume segmentation in logs; impossible to distinguish continuous from interrupted sessions. Fix: run counter incremented atomically in SESSION_RESUME handler before first entry commit.</div>
+  <div class="bug bug-med"><strong>#9 Genesis entry timestamp drift</strong>Genesis entry timestamp set at session_start but re-used as chain input after the user granted directory access (variable delay of seconds to minutes) → timestamp committed into chain_hash predates actual session data. Fix: chain_seed generated at START; genesis entry timestamp set at first actual message capture.</div>
+  <div class="bug bug-med"><strong>#10 Content.js re-injection on SPA navigation</strong>Navigation within ChatGPT (new conversation) re-injected content.js without tearing down existing MutationObserver → two active observers → duplicate entry commits with DUPLICATE status noise inflating the log. Fix: URL_CHANGE detection sends OBSERVER_SUSPEND, tears down existing observer, re-initialises cleanly.</div>
+  <div class="bug bug-med"><strong>#11 Claude artifact content in main chain</strong>Artifact panel DOM text included in main entry innerText → content_hash changed on artifact expand/collapse user interactions post-capture → hash instability. Fix: artifact containers explicitly excluded from innerText extraction; flagged in metadata.has_artifact.</div>
+
+  <h3 style="color:var(--text3);margin-top:1rem">Low — edge cases (2)</h3>
+  <div class="bug bug-low"><strong>#12 Popup status not reflecting PAUSED state</strong>Background returned "CAPTURING" during async flush window on PAUSE — popup showed wrong state for several seconds. Fix: state transitioned to PAUSED before flush begins; popup reads state from chrome.storage.session (synchronously updated), not from in-memory variable.</div>
+  <div class="bug bug-low"><strong>#13 smart-sync.ps1 path separator on non-Windows</strong>Hardcoded backslash path separator broke sync when run under PowerShell Core on macOS/Linux. Fix: all path construction uses Join-Path for OS-agnostic separator resolution.</div>
+</section>
+
+<!-- CORPUS -->
+<section id="corpus">
+  <h2><span class="h2-num">11</span>Session corpus</h2>
+
+  <div class="grid3">
+    <div class="stat-card">
+      <div class="stat-num">12</div>
+      <div class="stat-label">ChatGPT sessions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">3</div>
+      <div class="stat-label">Claude sessions</div>
+    </div>
+    <div class="stat-card" style="border-color:rgba(240,96,96,.3)">
+      <div class="stat-num" style="color:var(--coral)">0</div>
+      <div class="stat-label">Gemini sessions</div>
+    </div>
+  </div>
+
+  <div class="warn-box" style="margin-top:1rem">
+    <strong>GAP: Gemini corpus empty</strong><br>
+    Critical bug #1 (tail_cursor_signature fix) has never been exercised against real Gemini session captures. Pre-publication requirement: minimum 5 Gemini sessions captured and chain-verified to validate fix correctness under real post-streaming DOM reformat conditions.
+  </div>
+
+  <div class="warn-box">
+    <strong>GAP: Multi-run session coverage unknown</strong><br>
+    Unknown how many of the 15 sessions include pause/resume cycles (multiple run_ids). Publication methodology requires at least 3 multi-run sessions per platform to demonstrate cross-run chain continuity and run_id increment correctness.
+  </div>
+
+  <div class="warn-box">
+    <strong>GAP: Tamper-detection validation not performed</strong><br>
+    Verifier has not been stress-tested against intentionally tampered session files. Pre-publication requirement: confirm FAIL verdicts fire correctly on each of: (a) content field edit, (b) entry deletion, (c) entry insertion, (d) entry reordering, (e) chain_hash field transplant from another session.
+  </div>
+
+  <div class="card card-dim" style="margin-top:1rem">
+    <h3>Corpus file naming</h3>
+    <p>All session files follow: <code>ai-capture-{platform}-{YYYY-MM-DDThhmm}.json</code></p>
+    <p>Example: <code>ai-capture-chatgpt-2024-11-15T142301.json</code></p>
+    <p>Sorted lexicographically by platform then session start time. No separate manifest file — session metadata is self-contained in each JSON <code>session_id</code> and <code>session_start</code> fields.</p>
+  </div>
+</section>
+
+<hr>
+<p style="font-size:11px;color:var(--text3);font-family:var(--mono)">AI Chat Capture – Forensic Logger · v11.0.0 · Architecture reference generated post-audit · SHA-256 chain integrity · MV3 Chromium extension</p>
+
+</main>
+
+<script>
+const links=document.querySelectorAll('.nav-link');
+const sections=document.querySelectorAll('section');
+const obs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      links.forEach(l=>l.classList.remove('active'));
+      const a=document.querySelector('.nav-link[href="#'+e.target.id+'"]');
+      if(a)a.classList.add('active');
+    }
+  });
+},{rootMargin:'-30% 0px -65% 0px'});
+sections.forEach(s=>obs.observe(s));
+links.forEach(l=>l.addEventListener('click',e=>{
+  e.preventDefault();
+  const t=document.querySelector(l.getAttribute('href'));
+  if(t)t.scrollIntoView({behavior:'smooth',block:'start'});
+}));
+</script>
+</body>
+</html>
