@@ -164,7 +164,18 @@ var GeminiExtractor = (function () {
       pre.textContent = `\n\`\`\`${lang}\n${codeText}\n\`\`\`\n`;
     });
 
-    return clone.innerText || clone.textContent || "";
+    // Inject newlines after block-level elements so textContent does not
+    // concatenate adjacent blocks without whitespace.
+    // e.g. "Paris.Often referred to as…" → "Paris.\nOften referred to as…"
+    //      "Key StatisticsElevation:"   → "Key Statistics\nElevation:"
+    clone
+      .querySelectorAll("p, h1, h2, h3, h4, h5, h6, li, br, section, table, tr")
+      .forEach((el) => el.appendChild(document.createTextNode("\n")));
+
+    return (clone.innerText || clone.textContent || "")
+      .replace(/[ \t]+\n/g, "\n")   // strip trailing spaces before newlines
+      .replace(/\n{3,}/g, "\n\n")   // collapse 3+ consecutive newlines to 2
+      .trim();
   }
 
   function getInputElement() {
