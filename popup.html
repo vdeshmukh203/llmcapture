@@ -38,6 +38,10 @@
         <span id="promptCount" class="message-count">0</span>
       </div>
       <div class="status-row">
+        <span class="status-label">Max Turns</span>
+        <span id="maxTurnsDisplay" class="message-count">50</span>
+      </div>
+      <div class="status-row">
         <span class="status-label">Session</span>
         <span id="sessionId" class="session-id">-</span>
       </div>
@@ -63,6 +67,13 @@
       <div class="toggle-row compact-row">
         <label for="autoRefreshToggle">Auto Refresh Status</label>
         <input type="checkbox" id="autoRefreshToggle" checked>
+      </div>
+      <div class="toggle-row compact-row">
+        <label for="maxTurnsInput">Max Turns</label>
+        <div class="max-turns-row">
+          <input type="number" id="maxTurnsInput" class="max-turns-input" min="1" max="9999" value="50">
+          <button id="setMaxTurns" class="btn btn-secondary btn-small">Set</button>
+        </div>
       </div>
       <div class="button-row">
         <button id="refreshStatus" class="btn btn-secondary btn-half">Refresh</button>
