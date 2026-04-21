@@ -1,0 +1,87 @@
+{
+  "_format": "ai-chat-capture-v12",
+  "_exportedAt": "2026-04-19T23:35:20.413Z",
+  "session": {
+    "sessionId": "sess_test_playwright01",
+    "sessionVersion": "12.0.0",
+    "platform": "claude",
+    "url": "https://claude.ai/chat/test-playwright",
+    "threadKey": "claude:https://claude.ai/chat/test-playwright",
+    "startedAt": "2026-04-19T23:35:18.435Z",
+    "endedAt": null,
+    "recoveredAt": null,
+    "recoveredFromReloadCount": 0,
+    "fingerprint": null,
+    "integrityStatus": "tampered",
+    "status": "active",
+    "lockReason": null,
+    "lockedAt": null,
+    "promptCount": 1,
+    "assistantCount": 1,
+    "entryCount": 2,
+    "duplicateCount": 0,
+    "errorCount": 0
+  },
+  "entries": [
+    {
+      "capturedAt": "2026-04-19T23:35:18.435Z",
+      "chainPosition": 1,
+      "errorDetail": null,
+      "hash": "aabbcc112233",
+      "previousHash": "GENESIS",
+      "rawInput": null,
+      "renderedText": "Hello, this is a Playwright test message.",
+      "role": "user",
+      "source": null,
+      "status": "captured",
+      "submittedAt": null,
+      "timestamp": "2026-04-19T23:35:18.435Z",
+      "turn": 1
+    },
+    {
+      "capturedAt": "2026-04-19T23:35:18.435Z",
+      "chainPosition": 2,
+      "errorDetail": null,
+      "hash": "ddeeff445566",
+      "previousHash": "aabbcc112233",
+      "rawInput": null,
+      "renderedText": "Hello! I am the AI response for the Playwright test.",
+      "role": "assistant",
+      "source": null,
+      "status": "captured",
+      "submittedAt": null,
+      "timestamp": "2026-04-19T23:35:18.435Z",
+      "turn": 2
+    }
+  ],
+  "events": [
+    {
+      "details": null,
+      "level": "info",
+      "message": "Started forensic capture session.",
+      "timestamp": "2026-04-19T23:35:18.435Z",
+      "type": "session_started"
+    }
+  ],
+  "verification": {
+    "valid": false,
+    "entries": [
+      {
+        "turn": 1,
+        "chainPosition": 1,
+        "valid": false,
+        "previousHashMatches": true,
+        "expectedHash": "014dacd8194c4300bb335adeb2f9fc3bedf079157409e3dd12a34639eaf74337",
+        "actualHash": "aabbcc112233"
+      },
+      {
+        "turn": 2,
+        "chainPosition": 2,
+        "valid": false,
+        "previousHashMatches": true,
+        "expectedHash": "bdbc7550defe87309640f64aaba53dba06b04a36d184e3f5d51d0b22e9f59219",
+        "actualHash": "ddeeff445566"
+      }
+    ]
+  }
+}

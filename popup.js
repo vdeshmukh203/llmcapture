@@ -46,6 +46,9 @@
   const closeModal       = $('closeModal');
   const initCaptureBtn   = $('initCapture');
   const preCheckPanel    = $('preCheckPanel');
+  const maxTurnsInput    = $('maxTurnsInput');
+  const setMaxTurnsBtn   = $('setMaxTurns');
+  const maxTurnsDisplay  = $('maxTurnsDisplay');
 
   let timer = null;
 
@@ -176,11 +179,39 @@
     }
   }
 
+  async function refreshMaxTurnsDisplay() {
+    const settings = await SessionStorage.getSettings();
+    const val = settings.maxPromptTurns || 50;
+    maxTurnsDisplay.textContent = String(val);
+    maxTurnsInput.value = String(val);
+  }
+
+  setMaxTurnsBtn.onclick = async () => {
+    const raw = parseInt(maxTurnsInput.value, 10);
+    if (!raw || raw < 1) {
+      maxTurnsInput.style.borderColor = '#ef4444';
+      setTimeout(() => { maxTurnsInput.style.borderColor = ''; }, 1500);
+      return;
+    }
+    const s = await SessionStorage.getSettings();
+    s.maxPromptTurns = raw;
+    await SessionStorage.saveSettings(s);
+    maxTurnsDisplay.textContent = String(raw);
+    // Flash confirmation
+    setMaxTurnsBtn.textContent = '✓';
+    setMaxTurnsBtn.style.color = '#10b981';
+    setTimeout(() => {
+      setMaxTurnsBtn.textContent = 'Set';
+      setMaxTurnsBtn.style.color = '';
+    }, 1200);
+  };
+
   async function init() {
     const settings = await SessionStorage.getSettings();
     captureToggle.checked = settings.captureEnabled;
     rawInputToggle.checked = settings.captureRawInput;
     autoRefreshToggle.checked = true;
+    await refreshMaxTurnsDisplay();
     await refreshAll();
     startTimer();
   }

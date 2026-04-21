@@ -1,0 +1,53 @@
+{
+  "_format": "ai-chat-capture-v12",
+  "_exportedAt": "2026-04-20T00:57:20.495Z",
+  "session": {
+    "sessionId": "sess_mo6gugso_8b22k3",
+    "sessionVersion": "12.0.0",
+    "platform": "chatgpt",
+    "url": "https://chatgpt.com/",
+    "threadKey": "chatgpt:https://chatgpt.com/",
+    "startedAt": "2026-04-20T00:37:58.536Z",
+    "endedAt": "2026-04-20T00:38:04.888Z",
+    "recoveredAt": null,
+    "recoveredFromReloadCount": 0,
+    "fingerprint": "c5b6ff6b988aab98bcd84239355689f3e861fb4dd2019929f50cbe2633993fb4",
+    "integrityStatus": "verified",
+    "status": "finalized",
+    "lockReason": null,
+    "lockedAt": null,
+    "promptCount": 0,
+    "assistantCount": 0,
+    "entryCount": 0,
+    "duplicateCount": 0,
+    "errorCount": 0
+  },
+  "entries": [],
+  "events": [
+    {
+      "details": {
+        "platform": "chatgpt",
+        "threadKey": "chatgpt:https://chatgpt.com/",
+        "url": "https://chatgpt.com/"
+      },
+      "level": "info",
+      "message": "Started forensic capture session.",
+      "timestamp": "2026-04-20T00:37:58.536Z",
+      "type": "session_started"
+    },
+    {
+      "details": {
+        "integrityStatus": "verified",
+        "reason": "thread_changed"
+      },
+      "level": "info",
+      "message": "Finalized forensic capture session.",
+      "timestamp": "2026-04-20T00:38:04.888Z",
+      "type": "session_finalized"
+    }
+  ],
+  "verification": {
+    "valid": true,
+    "entries": []
+  }
+}
