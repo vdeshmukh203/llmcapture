@@ -11,9 +11,7 @@
     <header class="header">
       <div class="header-title">
         <div class="logo">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
+          <img src="icons/icon128.png" width="24" height="24" alt="logo" style="border-radius:4px;display:block;">
         </div>
         <h1>AI Chat Capture</h1>
       </div>
@@ -36,6 +34,10 @@
       <div class="status-row">
         <span class="status-label">Prompts</span>
         <span id="promptCount" class="message-count">0</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Max Turns</span>
+        <span id="maxTurnsDisplay" class="message-count">50</span>
       </div>
       <div class="status-row">
         <span class="status-label">Session</span>
@@ -63,6 +65,13 @@
       <div class="toggle-row compact-row">
         <label for="autoRefreshToggle">Auto Refresh Status</label>
         <input type="checkbox" id="autoRefreshToggle" checked>
+      </div>
+      <div class="toggle-row compact-row">
+        <label for="maxTurnsInput">Max Turns</label>
+        <div class="max-turns-row">
+          <input type="number" id="maxTurnsInput" class="max-turns-input" min="1" max="9999" value="50">
+          <button id="setMaxTurns" class="btn btn-secondary btn-small">Set</button>
+        </div>
       </div>
       <div class="button-row">
         <button id="refreshStatus" class="btn btn-secondary btn-half">Refresh</button>

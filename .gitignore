@@ -2,3 +2,4 @@ tests/auth/
 playwright-report/
 test-results/
 node_modules/
+.claude/worktrees/
