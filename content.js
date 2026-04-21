@@ -138,6 +138,14 @@
     // chain entries that do not correspond to DOM message nodes. Using entryCount
     // causes a desync after reload, leading to missed or re-processed messages.
     knownMessageCount = currentSession.domMessageCount || 0;
+    // FIX #11: Safety floor — if domMessageCount wasn't persisted yet (e.g. after
+    // a URL transition the session is resumed before updateDomMessageCount fires),
+    // use entries.length so we don't re-process already-stored turns and inflate
+    // duplicateCount with spurious duplicate_skipped events.
+    const entryFloor = (currentSession.entries && currentSession.entries.length) || 0;
+    if (knownMessageCount < entryFloor) {
+      knownMessageCount = entryFloor;
+    }
 
     isCapturing = !currentSession.lockedAt;
 

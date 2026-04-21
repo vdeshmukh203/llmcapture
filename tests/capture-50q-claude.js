@@ -283,6 +283,16 @@ async function run() {
   // Clicking the button exercises the real UI flow (chrome.downloads.download).
   // We then also pull the data programmatically so it is always written to
   // session_logs/ regardless of where Chrome chose to save its own download.
+  // Finalize all sessions so exported data shows status:"finalized" + endedAt
+  await popup.evaluate(async () => {
+    const idx = await new Promise(r =>
+      chrome.storage.local.get('aicap_session_index', res => r(res['aicap_session_index'] ?? []))
+    );
+    for (const rec of idx) {
+      await SessionStorage.finalizeSession(rec.sessionId, 'test_complete');
+    }
+  });
+
   console.log('\n  Clicking "Export All Sessions"...');
   await popup.bringToFront();
   await popup.click('#exportAll');
