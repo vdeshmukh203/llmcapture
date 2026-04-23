@@ -31,15 +31,29 @@ var ClaudeExtractor = (function () {
 
     const allTurns = [];
 
+    // User messages: always use the known-working direct selector. Do NOT fall
+    // through to extractByStructure() for user messages — that path can silently
+    // return [] if the container query picks the wrong element, breaking capture.
     userEls.forEach((el) => {
       const rect = el.getBoundingClientRect();
       allTurns.push({ role: "user", element: el, y: rect.top + window.scrollY });
     });
 
-    assistantEls.forEach((el) => {
-      const rect = el.getBoundingClientRect();
-      allTurns.push({ role: "assistant", element: el, y: rect.top + window.scrollY });
-    });
+    if (assistantEls.length > 0) {
+      // Assistant selector is working — use it directly.
+      assistantEls.forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        allTurns.push({ role: "assistant", element: el, y: rect.top + window.scrollY });
+      });
+    } else if (userEls.length > 0) {
+      // Assistant selector yielded nothing (stale/changed DOM). Try to locate
+      // assistant turns by DOM proximity: each assistant response is typically
+      // the next top-level sibling of the user message's container ancestor.
+      findAssistantsByProximity(userEls).forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        allTurns.push({ role: "assistant", element: el, y: rect.top + window.scrollY });
+      });
+    }
 
     allTurns.sort((a, b) => a.y - b.y);
 
@@ -62,11 +76,67 @@ var ClaudeExtractor = (function () {
     return messages;
   }
 
+  // Returns the direct child of `container` that is an ancestor of `el`,
+  // or null when `el` is not a descendant of `container`.
+  function getTopLevelChild(el, container) {
+    let current = el;
+    while (current && current.parentElement !== container) {
+      current = current.parentElement;
+    }
+    return current !== container ? current : null;
+  }
+
+  // Locates assistant response elements by walking UP the DOM from each user
+  // message element and checking nextElementSibling at each level.
+  //
+  // Claude's current DOM (verified 2026-04): the [data-testid="user-message"]
+  // element is ~7 levels deep inside a plain wrapper div. The assistant response
+  // is the nextElementSibling of that wrapper. Intermediate siblings (e.g. the
+  // timestamp bar "9:23 PM") are short (≤ 8 chars) and are skipped by the
+  // text-length guard.  The container-anchor approach broke because the user
+  // element is not a direct child of `main` — it is deeply nested.
+  function findAssistantsByProximity(userEls) {
+    const found = [];
+    const seen  = new Set();
+
+    Array.from(userEls).forEach((userEl) => {
+      let node = userEl;
+      for (let depth = 0; depth < 12; depth++) {
+        const sib = node.nextElementSibling;
+        if (sib && !seen.has(sib)) {
+          // If the sibling IS (or contains) a user message, we've reached the
+          // next user turn — no assistant response exists for this turn yet.
+          if (
+            sib.matches(SELECTORS.userMessage) ||
+            sib.querySelector(SELECTORS.userMessage)
+          ) {
+            break;
+          }
+          // Skip short elements like timestamp / action bars ("9:23 PM" = 7 chars).
+          // Even a one-word assistant reply has a screen-reader prefix that makes
+          // the total textContent length well above 15 characters.
+          const sibText = sib.textContent.trim();
+          if (sibText.length > 15) {
+            seen.add(sib);
+            found.push(sib);
+            break;
+          }
+        }
+        const parent = node.parentElement;
+        if (!parent) break;
+        node = parent;
+      }
+    });
+
+    return found;
+  }
+
   function extractByStructure() {
     const messages = [];
     const container =
-      document.querySelector(SELECTORS.conversationContainer) ||
-      document.querySelector("main");
+      document.querySelector("main") ||
+      document.querySelector('[role="main"]') ||
+      document.querySelector(SELECTORS.conversationContainer);
     if (!container) return messages;
 
     const turns = container.querySelectorAll(SELECTORS.turnContainer);
@@ -81,7 +151,7 @@ var ClaudeExtractor = (function () {
         index % 2 === 0;
 
       messages.push({
-        index: index,
+        index,
         role: isUser ? "user" : "assistant",
         renderedText: text.trim(),
         element: turn,
@@ -96,6 +166,12 @@ var ClaudeExtractor = (function () {
     if (!element) return "";
 
     const clone = element.cloneNode(true);
+
+    // Remove screen-reader-only elements. Claude.ai wraps each assistant reply
+    // with a visually-hidden span ("Claude responded: …") for accessibility;
+    // its textContent duplicates the visible reply with a prefix, so we strip
+    // it before extracting text. Also remove aria-hidden decorative elements.
+    clone.querySelectorAll('.sr-only, [aria-hidden="true"]').forEach(el => el.remove());
 
     const buttons = clone.querySelectorAll("button");
     buttons.forEach((btn) => {
