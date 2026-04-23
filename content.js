@@ -138,6 +138,14 @@
     // chain entries that do not correspond to DOM message nodes. Using entryCount
     // causes a desync after reload, leading to missed or re-processed messages.
     knownMessageCount = currentSession.domMessageCount || 0;
+    // FIX #11: Safety floor — if domMessageCount wasn't persisted yet (e.g. after
+    // a URL transition the session is resumed before updateDomMessageCount fires),
+    // use entries.length so we don't re-process already-stored turns and inflate
+    // duplicateCount with spurious duplicate_skipped events.
+    const entryFloor = (currentSession.entries && currentSession.entries.length) || 0;
+    if (knownMessageCount < entryFloor) {
+      knownMessageCount = entryFloor;
+    }
 
     isCapturing = !currentSession.lockedAt;
 
@@ -228,10 +236,26 @@
 
     isProcessing = true;
     try {
-      const messages = extractor.extractAllMessages();
+      let messages = extractor.extractAllMessages();
       if (messages.length > knownMessageCount) {
         const newMessages = messages.slice(knownMessageCount);
-        await processMessages(newMessages);
+        // FIX #9 guard: if the first new message is an assistant reply but we
+        // haven't yet stored the user turn for this exchange, the user message
+        // DOM element was probably filtered out due to empty text (ChatGPT's
+        // React renderer transiently clears text nodes during reconciliation).
+        // Wait 5 s (up from 2 s) and re-extract so the node is repopulated.
+        // Also fire when promptCount < assistantCount (the user message was
+        // already skipped in a prior cycle and the slot advanced) — the extra
+        // wait gives React time to repopulate for the retry in processMessages.
+        if (
+          newMessages.length > 0 &&
+          newMessages[0].role === "assistant" &&
+          currentSession.promptCount <= currentSession.assistantCount
+        ) {
+          await sleep(5000);
+          messages = extractor.extractAllMessages();
+        }
+        await processMessages(messages.slice(knownMessageCount));
       }
     } finally {
       isProcessing = false;
@@ -279,7 +303,11 @@
         const latestVersion = currentMessages.find(
           (m) => m.index === msg.index && m.role === msg.role
         );
-        const finalText = latestVersion
+        // FIX #9: latestVersion.renderedText can be transiently empty if ChatGPT
+        // re-renders the element between the two extractAllMessages calls (e.g. a
+        // React reconciliation wipes the text node for a split second). Fall back
+        // to the original captured text so storedText is never forced to "".
+        const finalText = (latestVersion && latestVersion.renderedText)
           ? latestVersion.renderedText
           : msg.renderedText;
 
@@ -290,8 +318,11 @@
         const storedText = isAssistantErrorEntry ? "" : normalized;
 
         if (!storedText && msg.role !== "assistant") {
+          // Empty user message — skip this slot and keep moving. FIX #9 above
+          // prevents genuine text from being lost; if storedText is still empty
+          // here the message really is empty (rare). Continue rather than break
+          // so subsequent messages are not stalled.
           knownMessageCount += 1;
-          // FIX #2: Persist updated DOM message count after every increment.
           await SessionStorage.updateDomMessageCount(
             currentSession.sessionId,
             knownMessageCount
