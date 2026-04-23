@@ -59,11 +59,22 @@ var GeminiExtractor = (function () {
     return raw.replace(/^Gemini said\s+/i, "").trim();
   }
 
+  // Remove elements that are DOM descendants of another element in the same set.
+  // Gemini's selector list matches both wrapper elements (e.g. <user-query>) and
+  // their inner children (e.g. .query-content), so without this filter every
+  // message produces two array entries — one for the wrapper and one for the child.
+  // The second entry always triggers isDuplicateMessage, inflating duplicateCount.
+  function deduplicateByDom(elements) {
+    return elements.filter(
+      (el) => !elements.some((other) => other !== el && other.contains(el))
+    );
+  }
+
   function extractAllMessages() {
     const messages = [];
 
-    const userEls = document.querySelectorAll(SELECTORS.userMessage);
-    const assistantEls = document.querySelectorAll(SELECTORS.assistantMessage);
+    const userEls      = deduplicateByDom(Array.from(document.querySelectorAll(SELECTORS.userMessage)));
+    const assistantEls = deduplicateByDom(Array.from(document.querySelectorAll(SELECTORS.assistantMessage)));
 
     if (userEls.length === 0 && assistantEls.length === 0) {
       return extractByStructure();
